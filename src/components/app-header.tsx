@@ -1,5 +1,5 @@
-import { NavLink } from "react-router-dom";
-import { useAuth } from "@/auth/auth-context";
+import { Link, NavLink } from "react-router-dom";
+import { useAuth, useGuestData } from "@/auth/auth-context";
 import { SignOutButton } from "@/components/sign-out-button";
 
 const NAV = [
@@ -11,6 +11,7 @@ const NAV = [
 
 export function AppHeader() {
   const { user } = useAuth();
+  const guest = useGuestData();
 
   return (
     <header className="border-b border-[var(--border)] bg-[var(--surface)]">
@@ -21,6 +22,8 @@ export function AppHeader() {
           </NavLink>
           {user?.email ? (
             <p className="truncate text-xs text-[var(--muted)] sm:hidden">{user.email}</p>
+          ) : guest ? (
+            <p className="text-xs font-medium text-[var(--muted)] sm:hidden">Guest</p>
           ) : null}
         </div>
         <nav className="flex flex-wrap items-center gap-1">
@@ -42,8 +45,19 @@ export function AppHeader() {
               <span className="hidden max-w-[12rem] truncate text-xs text-[var(--muted)] sm:inline">
                 {user.email}
               </span>
+            ) : guest ? (
+              <span className="hidden text-xs font-medium text-[var(--muted)] sm:inline">Guest</span>
             ) : null}
-            <SignOutButton />
+            {user ? (
+              <SignOutButton />
+            ) : (
+              <Link
+                to="/login"
+                className="rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
         </nav>
       </div>

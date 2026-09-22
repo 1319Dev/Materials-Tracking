@@ -1,21 +1,19 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useGuestData } from "@/auth/auth-context";
 import { PageShell } from "@/components/page-shell";
 import { Field, PrimaryButton, inputClassName } from "@/components/ui";
+import { loadMaterials, saveCheckIn } from "@/lib/app-data";
 import type { Material } from "@/lib/database.types";
-import { supabase } from "@/lib/supabase";
 
 type DocPick = {
   packingList: File | null;
   mtr: File | null;
 };
 
-function sanitizeFileName(name: string) {
-  return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
-}
-
 export function CheckInPage() {
   const navigate = useNavigate();
+  const local = useGuestData();
   const [query, setQuery] = useState("");
   const [materials, setMaterials] = useState<Material[]>([]);
   const [selected, setSelected] = useState<Material | null>(null);
@@ -32,21 +30,17 @@ export function CheckInPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error: loadError } = await supabase
-        .from("materials")
-        .select("*")
-        .order("product_name")
-        .limit(2000);
+      const { materials: rows, error: loadError } = await loadMaterials(local);
       if (!cancelled) {
-        if (loadError) setError(loadError.message);
-        setMaterials(data ?? []);
+        setError(loadError);
+        setMaterials(rows);
         setLoadingCatalog(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [local]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -92,76 +86,34 @@ export function CheckInPage() {
     }
 
     setBusy(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setBusy(false);
-      setError("You must be signed in.");
-      return;
-    }
+    const files: Array<{ file: File; docType: "packing_list" | "mtr" }> = [];
+    if (docs.packingList) files.push({ file: docs.packingList, docType: "packing_list" });
+    if (docs.mtr) files.push({ file: docs.mtr, docType: "mtr" });
 
-    const { data: checkIn, error: checkInError } = await supabase
-      .from("check_ins")
-      .insert({
-        user_id: user.id,
-        material_id: selected.id,
-        product_name: selected.product_name,
-        product_code: selected.product_code,
-        heat_number: heatNumber.trim() || "N/A",
-        serial_number: serialNumber.trim() || null,
-        quantity: qty,
-        notes: notes.trim() || null,
-      })
-      .select("id")
-      .single();
-
-    if (checkInError || !checkIn) {
-      setBusy(false);
-      setError(checkInError?.message || "Failed to save check-in");
-      return;
-    }
-
-    const uploads: Array<{ file: File; doc_type: "packing_list" | "mtr" }> = [];
-    if (docs.packingList) uploads.push({ file: docs.packingList, doc_type: "packing_list" });
-    if (docs.mtr) uploads.push({ file: docs.mtr, doc_type: "mtr" });
-
-    for (const upload of uploads) {
-      const storagePath = `${user.id}/${checkIn.id}/${upload.doc_type}-${Date.now()}-${sanitizeFileName(upload.file.name)}`;
-      const { error: storageError } = await supabase.storage
-        .from("material-documents")
-        .upload(storagePath, upload.file, {
-          contentType: upload.file.type || undefined,
-          upsert: false,
-        });
-      if (storageError) {
-        setBusy(false);
-        setError(storageError.message);
-        return;
-      }
-      const { error: docError } = await supabase.from("documents").insert({
-        user_id: user.id,
-        check_in_id: checkIn.id,
-        doc_type: upload.doc_type,
-        storage_path: storagePath,
-        file_name: upload.file.name,
-        mime_type: upload.file.type || null,
-      });
-      if (docError) {
-        setBusy(false);
-        setError(docError.message);
-        return;
-      }
-    }
-
+    const saved = await saveCheckIn(local, {
+      material: selected,
+      heatNumber,
+      serialNumber,
+      quantity: qty,
+      notes,
+      files,
+    });
     setBusy(false);
-    navigate(`/inventory/${checkIn.id}`);
+    if ("error" in saved) {
+      setError(saved.error);
+      return;
+    }
+    navigate(`/inventory/${saved.id}`);
   }
 
   return (
     <PageShell
       title="Check in materials"
-      description="Search the catalog, enter heat/serial, attach packing list and/or MTR, then save."
+      description={
+        local
+          ? "Search the sample catalog, enter heat/serial, and save on this device. Sign in to save to the cloud."
+          : "Search the catalog, enter heat/serial, attach packing list and/or MTR, then save."
+      }
     >
       <form
         onSubmit={onSubmit}

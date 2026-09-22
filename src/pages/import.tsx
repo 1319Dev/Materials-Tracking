@@ -1,7 +1,8 @@
 import { FormEvent, useMemo, useState } from "react";
+import { useGuestData } from "@/auth/auth-context";
 import { PageShell } from "@/components/page-shell";
 import { Field, PrimaryButton, SecondaryButton, inputClassName } from "@/components/ui";
-import type { Json } from "@/lib/database.types";
+import { importCatalog } from "@/lib/app-data";
 import { publicAsset } from "@/lib/paths";
 import {
   CATALOG_FIELD_LABELS,
@@ -11,11 +12,11 @@ import {
   mapRows,
   parseSpreadsheetFile,
 } from "@/lib/spreadsheet";
-import { supabase } from "@/lib/supabase";
 
 type Step = "upload" | "map" | "preview" | "done";
 
 export function ImportPage() {
+  const local = useGuestData();
   const [step, setStep] = useState<Step>("upload");
   const [fileName, setFileName] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
@@ -67,132 +68,24 @@ export function ImportPage() {
   async function onImport() {
     setBusy(true);
     setError(null);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setBusy(false);
-      setError("You must be signed in.");
-      return;
-    }
-
-    const { data: batch, error: batchError } = await supabase
-      .from("import_batches")
-      .insert({
-        user_id: user.id,
-        file_name: fileName,
-        row_count: mapped.length,
-      })
-      .select("id")
-      .single();
-
-    if (batchError || !batch) {
-      setBusy(false);
-      setError(batchError?.message || "Failed to create import batch");
-      return;
-    }
-
-    const { data: existing, error: existingError } = await supabase
-      .from("materials")
-      .select("id, product_code, product_name");
-
-    if (existingError) {
-      setBusy(false);
-      setError(existingError.message);
-      return;
-    }
-
-    const byCode = new Map<string, string>();
-    const byName = new Map<string, string>();
-    for (const row of existing ?? []) {
-      if (row.product_code) byCode.set(row.product_code.toLowerCase(), row.id);
-      byName.set(row.product_name.toLowerCase(), row.id);
-    }
-
-    let inserted = 0;
-    let updated = 0;
-    const chunkSize = 50;
-
-    type MaterialWrite = {
-      product_code: string | null;
-      product_name: string;
-      description: string | null;
-      size: string | null;
-      material_grade: string | null;
-      manufacturer: string | null;
-      unit: string | null;
-      requires_serial: boolean;
-      heat_number_required: boolean;
-      import_batch_id: string;
-      source_row: Json;
-      updated_at: string;
-    };
-
-    for (let i = 0; i < mapped.length; i += chunkSize) {
-      const chunk = mapped.slice(i, i + chunkSize);
-      const toInsert: Array<MaterialWrite & { user_id: string }> = [];
-      const updates: Array<{ id: string; payload: MaterialWrite }> = [];
-
-      for (const row of chunk) {
-        const payload = {
-          product_code: row.product_code,
-          product_name: row.product_name,
-          description: row.description,
-          size: row.size,
-          material_grade: row.material_grade,
-          manufacturer: row.manufacturer,
-          unit: row.unit,
-          requires_serial: row.requires_serial,
-          heat_number_required: row.heat_number_required,
-          import_batch_id: batch.id,
-          source_row: row.source_row as Json,
-          updated_at: new Date().toISOString(),
-        };
-
-        const existingId =
-          (row.product_code && byCode.get(row.product_code.toLowerCase())) ||
-          byName.get(row.product_name.toLowerCase());
-
-        if (existingId) {
-          updates.push({ id: existingId, payload });
-        } else {
-          toInsert.push({ ...payload, user_id: user.id });
-        }
-      }
-
-      if (toInsert.length) {
-        const { error: insertError } = await supabase.from("materials").insert(toInsert);
-        if (insertError) {
-          setBusy(false);
-          setError(insertError.message);
-          return;
-        }
-        inserted += toInsert.length;
-      }
-
-      for (const update of updates) {
-        const { error: updateError } = await supabase
-          .from("materials")
-          .update(update.payload)
-          .eq("id", update.id);
-        if (updateError) {
-          setBusy(false);
-          setError(updateError.message);
-          return;
-        }
-        updated += 1;
-      }
-    }
-
-    setResult({ inserted, updated });
-    setStep("done");
+    const saved = await importCatalog(local, fileName, mapped);
     setBusy(false);
+    if ("error" in saved) {
+      setError(saved.error);
+      return;
+    }
+    setResult({ inserted: saved.inserted, updated: saved.updated });
+    setStep("done");
   }
 
   return (
     <PageShell
       title="Import spreadsheet"
-      description="Upload CSV or XLSX. Map columns, preview, then upsert into your materials catalog used by check-in."
+      description={
+        local
+          ? "Upload CSV or XLSX. In guest mode the catalog is saved on this device. Sign in to save to the cloud."
+          : "Upload CSV or XLSX. Map columns, preview, then upsert into your materials catalog used by check-in."
+      }
     >
       {step === "upload" ? (
         <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
@@ -314,7 +207,8 @@ export function ImportPage() {
       {step === "done" && result ? (
         <section className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
           <p className="text-sm text-[var(--ok)]">
-            Import complete: {result.inserted} added, {result.updated} updated.
+            {local ? "Saved on this device" : "Import complete"}: {result.inserted} added,{" "}
+            {result.updated} updated.
           </p>
           <div className="flex flex-wrap gap-2">
             <PrimaryButton to="/check-in">Go to check-in</PrimaryButton>

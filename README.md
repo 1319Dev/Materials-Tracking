@@ -85,7 +85,9 @@ Magic links use the PKCE flow (`flowType: 'pkce'`, `detectSessionInUrl: true`). 
 
 ## Using the app
 
-Sign up, then:
+Open the site and choose **Continue without signing in** to browse the dashboard, import, check-in, and inventory with sample catalog data stored in this browser. Email sign-in and magic links stay available when you want to save to Supabase.
+
+With an account:
 
 - **Import** a CSV or XLSX (sample: `/Materials-Tracking/samples/materials-catalog.csv`)
 - **Check in** a product with heat number, serial when the catalog says it is required, quantity, notes, and optional packing list / MTR uploads

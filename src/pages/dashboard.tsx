@@ -1,53 +1,35 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/auth/auth-context";
+import { useAuth, useGuestData } from "@/auth/auth-context";
 import { PageShell } from "@/components/page-shell";
 import { PrimaryButton, SecondaryButton } from "@/components/ui";
+import { loadDashboard, type RecentCheckIn } from "@/lib/app-data";
 import { formatWhen } from "@/lib/format";
-import { supabase } from "@/lib/supabase";
-
-type RecentRow = {
-  id: string;
-  product_name: string;
-  heat_number: string;
-  serial_number: string | null;
-  quantity: number;
-  received_at: string;
-};
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const local = useGuestData();
   const [materialCount, setMaterialCount] = useState(0);
   const [checkInCount, setCheckInCount] = useState(0);
-  const [recent, setRecent] = useState<RecentRow[]>([]);
+  const [recent, setRecent] = useState<RecentCheckIn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [{ count: materials, error: materialsError }, { count: checkIns, error: checkInsError }, { data, error: recentError }] =
-        await Promise.all([
-          supabase.from("materials").select("*", { count: "exact", head: true }),
-          supabase.from("check_ins").select("*", { count: "exact", head: true }),
-          supabase
-            .from("check_ins")
-            .select("id, product_name, heat_number, serial_number, quantity, received_at")
-            .order("received_at", { ascending: false })
-            .limit(8),
-        ]);
+      const result = await loadDashboard(local);
       if (cancelled) return;
-      const message = materialsError?.message || checkInsError?.message || recentError?.message;
-      if (message) setError(message);
-      setMaterialCount(materials ?? 0);
-      setCheckInCount(checkIns ?? 0);
-      setRecent(data ?? []);
+      setError(result.error);
+      setMaterialCount(result.materialCount);
+      setCheckInCount(result.checkInCount);
+      setRecent(result.recent);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [local]);
 
   return (
     <PageShell
@@ -57,7 +39,7 @@ export function DashboardPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Catalog items" value={loading ? "…" : materialCount} />
         <Stat label="Check-ins" value={loading ? "…" : checkInCount} />
-        <Stat label="Signed in" value={user?.email?.split("@")[0] ?? "—"} />
+        <Stat label={local ? "Session" : "Signed in"} value={user?.email?.split("@")[0] ?? (local ? "Guest" : "—")} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">

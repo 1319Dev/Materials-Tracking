@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { useGuestData } from "@/auth/auth-context";
 import type { DocumentRow } from "@/lib/database.types";
+import { guestDocumentHref } from "@/lib/guest-store";
 import { supabase } from "@/lib/supabase";
 
 const DOC_LABELS: Record<DocumentRow["doc_type"], string> = {
@@ -9,26 +11,39 @@ const DOC_LABELS: Record<DocumentRow["doc_type"], string> = {
 };
 
 export function DocumentLinks({ documents }: { documents: DocumentRow[] }) {
+  const local = useGuestData();
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    setReady(false);
     (async () => {
       const next: Record<string, string> = {};
-      for (const doc of documents) {
-        const { data, error } = await supabase.storage
-          .from("material-documents")
-          .createSignedUrl(doc.storage_path, 60 * 30);
-        if (!error && data?.signedUrl) {
-          next[doc.id] = data.signedUrl;
+      if (local) {
+        for (const doc of documents) {
+          const href = await guestDocumentHref(doc);
+          if (href) next[doc.id] = href;
+        }
+      } else {
+        for (const doc of documents) {
+          const { data, error } = await supabase.storage
+            .from("material-documents")
+            .createSignedUrl(doc.storage_path, 60 * 30);
+          if (!error && data?.signedUrl) {
+            next[doc.id] = data.signedUrl;
+          }
         }
       }
-      if (!cancelled) setUrls(next);
+      if (!cancelled) {
+        setUrls(next);
+        setReady(true);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [documents]);
+  }, [documents, local]);
 
   return (
     <ul className="divide-y divide-[var(--border)]">
@@ -47,6 +62,8 @@ export function DocumentLinks({ documents }: { documents: DocumentRow[] }) {
             >
               Open
             </a>
+          ) : ready && local ? (
+            <span className="text-xs text-[var(--muted)]">Not stored in the cloud</span>
           ) : (
             <span className="text-xs text-[var(--muted)]">Preparing…</span>
           )}

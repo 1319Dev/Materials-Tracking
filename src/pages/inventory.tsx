@@ -1,26 +1,17 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useGuestData } from "@/auth/auth-context";
 import { PageShell } from "@/components/page-shell";
 import { inputClassName } from "@/components/ui";
+import { loadInventory, type InventoryListRow } from "@/lib/app-data";
 import { formatWhen } from "@/lib/format";
-import { supabase } from "@/lib/supabase";
-
-type InventoryRow = {
-  id: string;
-  product_name: string;
-  product_code: string | null;
-  heat_number: string;
-  serial_number: string | null;
-  quantity: number;
-  received_at: string;
-  documents: { count: number }[] | null;
-};
 
 export function InventoryPage() {
+  const local = useGuestData();
   const [searchParams, setSearchParams] = useSearchParams();
   const query = (searchParams.get("q") ?? "").trim();
   const [draft, setDraft] = useState(query);
-  const [rows, setRows] = useState<InventoryRow[]>([]);
+  const [rows, setRows] = useState<InventoryListRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -32,32 +23,16 @@ export function InventoryPage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      let request = supabase
-        .from("check_ins")
-        .select(
-          "id, product_name, product_code, heat_number, serial_number, quantity, received_at, documents(count)",
-        )
-        .order("received_at", { ascending: false })
-        .limit(100);
-
-      if (query) {
-        const pattern = `%${query.replaceAll(",", " ")}%`;
-        request = request.or(
-          `product_name.ilike.${pattern},product_code.ilike.${pattern},heat_number.ilike.${pattern},serial_number.ilike.${pattern}`,
-        );
-      }
-
-      const { data, error: loadError } = await request;
+      const { rows: next, error: loadError } = await loadInventory(local, query);
       if (cancelled) return;
-      if (loadError) setError(loadError.message);
-      else setError(null);
-      setRows((data as InventoryRow[] | null) ?? []);
+      setError(loadError);
+      setRows(next);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [local, query]);
 
   function onSearch(e: FormEvent) {
     e.preventDefault();

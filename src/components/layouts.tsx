@@ -1,13 +1,13 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/auth-context";
 import { AppHeader } from "@/components/app-header";
-import { SetupRequired } from "@/components/setup-required";
+import { GuestBanner } from "@/components/guest-banner";
+import { guestModeEnabled } from "@/lib/guest-store";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 export function AuthLayout() {
   const { user, loading } = useAuth();
-  if (!isSupabaseConfigured()) return <SetupRequired />;
-  if (loading) return <CenteredNote>Loading…</CenteredNote>;
+  if (isSupabaseConfigured() && loading) return <CenteredNote>Loading…</CenteredNote>;
   if (user) return <Navigate to="/dashboard" replace />;
 
   return (
@@ -28,18 +28,19 @@ export function AuthLayout() {
 }
 
 export function RequireAuth() {
-  const { user, loading } = useAuth();
+  const { user, loading, guest } = useAuth();
   const location = useLocation();
+  const guestBrowsing = !user && (guest || guestModeEnabled());
 
-  if (!isSupabaseConfigured()) return <SetupRequired />;
-  if (loading) return <CenteredNote>Loading…</CenteredNote>;
-  if (!user) {
+  if (isSupabaseConfigured() && loading) return <CenteredNote>Loading…</CenteredNote>;
+  if (!user && !guestBrowsing) {
     const next = `${location.pathname}${location.search}`;
     return <Navigate to="/login" replace state={{ next }} />;
   }
 
   return (
     <div className="flex min-h-full flex-col">
+      {guestBrowsing ? <GuestBanner /> : null}
       <AppHeader />
       <main className="flex flex-1 flex-col">
         <Outlet />
