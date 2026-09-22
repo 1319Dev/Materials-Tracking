@@ -1,23 +1,21 @@
-"use client";
-
 import { FormEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { PageShell } from "@/components/page-shell";
 import { Field, PrimaryButton, SecondaryButton, inputClassName } from "@/components/ui";
-import { createClient } from "@/lib/supabase/client";
+import type { Json } from "@/lib/database.types";
+import { publicAsset } from "@/lib/paths";
 import {
   CATALOG_FIELD_LABELS,
-  CatalogField,
-  MappedMaterialRow,
+  type CatalogField,
+  type MappedMaterialRow,
   autoDetectMapping,
   mapRows,
   parseSpreadsheetFile,
 } from "@/lib/spreadsheet";
+import { supabase } from "@/lib/supabase";
 
 type Step = "upload" | "map" | "preview" | "done";
 
-export default function ImportPage() {
-  const router = useRouter();
+export function ImportPage() {
   const [step, setStep] = useState<Step>("upload");
   const [fileName, setFileName] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
@@ -27,9 +25,7 @@ export default function ImportPage() {
   const [skipped, setSkipped] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ inserted: number; updated: number } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{ inserted: number; updated: number } | null>(null);
 
   const previewRows = useMemo(() => mapped.slice(0, 8), [mapped]);
 
@@ -71,7 +67,6 @@ export default function ImportPage() {
   async function onImport() {
     setBusy(true);
     setError(null);
-    const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -118,10 +113,25 @@ export default function ImportPage() {
     let updated = 0;
     const chunkSize = 50;
 
+    type MaterialWrite = {
+      product_code: string | null;
+      product_name: string;
+      description: string | null;
+      size: string | null;
+      material_grade: string | null;
+      manufacturer: string | null;
+      unit: string | null;
+      requires_serial: boolean;
+      heat_number_required: boolean;
+      import_batch_id: string;
+      source_row: Json;
+      updated_at: string;
+    };
+
     for (let i = 0; i < mapped.length; i += chunkSize) {
       const chunk = mapped.slice(i, i + chunkSize);
-      const toInsert: Array<Record<string, unknown>> = [];
-      const updates: Array<{ id: string; payload: Record<string, unknown> }> = [];
+      const toInsert: Array<MaterialWrite & { user_id: string }> = [];
+      const updates: Array<{ id: string; payload: MaterialWrite }> = [];
 
       for (const row of chunk) {
         const payload = {
@@ -135,7 +145,7 @@ export default function ImportPage() {
           requires_serial: row.requires_serial,
           heat_number_required: row.heat_number_required,
           import_batch_id: batch.id,
-          source_row: row.source_row,
+          source_row: row.source_row as Json,
           updated_at: new Date().toISOString(),
         };
 
@@ -177,7 +187,6 @@ export default function ImportPage() {
     setResult({ inserted, updated });
     setStep("done");
     setBusy(false);
-    router.refresh();
   }
 
   return (
@@ -201,7 +210,10 @@ export default function ImportPage() {
           </Field>
           <p className="mt-3 text-sm text-[var(--muted)]">
             Sample template:{" "}
-            <a className="text-[var(--accent)] underline" href="/samples/materials-catalog.csv">
+            <a
+              className="text-[var(--accent)] underline"
+              href={publicAsset("samples/materials-catalog.csv")}
+            >
               materials-catalog.csv
             </a>
           </p>
@@ -215,15 +227,12 @@ export default function ImportPage() {
           className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4"
         >
           <p className="text-sm text-[var(--muted)]">
-            File: <span className="font-medium text-[var(--ink)]">{fileName}</span> ·{" "}
-            {rows.length} rows
+            File: <span className="font-medium text-[var(--ink)]">{fileName}</span> · {rows.length}{" "}
+            rows
           </p>
           <div className="space-y-3">
             {headers.map((header) => (
-              <div
-                key={header}
-                className="grid gap-2 sm:grid-cols-[1fr_14rem] sm:items-center"
-              >
+              <div key={header} className="grid gap-2 sm:grid-cols-[1fr_14rem] sm:items-center">
                 <div>
                   <p className="text-sm font-medium">{header}</p>
                   <p className="truncate font-mono text-xs text-[var(--muted)]">
@@ -262,10 +271,9 @@ export default function ImportPage() {
       {step === "preview" ? (
         <section className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
           <p className="text-sm text-[var(--muted)]">
-            Ready to import <strong className="text-[var(--ink)]">{mapped.length}</strong>{" "}
-            materials
-            {skipped ? ` (${skipped} rows skipped — missing product name)` : ""}. Existing
-            matches by product code (or name) will be updated.
+            Ready to import <strong className="text-[var(--ink)]">{mapped.length}</strong> materials
+            {skipped ? ` (${skipped} rows skipped — missing product name)` : ""}. Existing matches
+            by product code (or name) will be updated.
           </p>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -309,7 +317,7 @@ export default function ImportPage() {
             Import complete: {result.inserted} added, {result.updated} updated.
           </p>
           <div className="flex flex-wrap gap-2">
-            <PrimaryButton href="/check-in">Go to check-in</PrimaryButton>
+            <PrimaryButton to="/check-in">Go to check-in</PrimaryButton>
             <SecondaryButton
               type="button"
               onClick={() => {

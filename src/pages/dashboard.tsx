@@ -1,33 +1,53 @@
-import { createClient } from "@/lib/supabase/server";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/auth/auth-context";
 import { PageShell } from "@/components/page-shell";
 import { PrimaryButton, SecondaryButton } from "@/components/ui";
+import { formatWhen } from "@/lib/format";
+import { supabase } from "@/lib/supabase";
 
-function formatWhen(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+type RecentRow = {
+  id: string;
+  product_name: string;
+  heat_number: string;
+  serial_number: string | null;
+  quantity: number;
+  received_at: string;
+};
 
-export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export function DashboardPage() {
+  const { user } = useAuth();
+  const [materialCount, setMaterialCount] = useState(0);
+  const [checkInCount, setCheckInCount] = useState(0);
+  const [recent, setRecent] = useState<RecentRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const [{ count: materialCount }, { count: checkInCount }, { data: recent }] =
-    await Promise.all([
-      supabase.from("materials").select("*", { count: "exact", head: true }),
-      supabase.from("check_ins").select("*", { count: "exact", head: true }),
-      supabase
-        .from("check_ins")
-        .select("id, product_name, heat_number, serial_number, quantity, received_at")
-        .order("received_at", { ascending: false })
-        .limit(8),
-    ]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [{ count: materials, error: materialsError }, { count: checkIns, error: checkInsError }, { data, error: recentError }] =
+        await Promise.all([
+          supabase.from("materials").select("*", { count: "exact", head: true }),
+          supabase.from("check_ins").select("*", { count: "exact", head: true }),
+          supabase
+            .from("check_ins")
+            .select("id, product_name, heat_number, serial_number, quantity, received_at")
+            .order("received_at", { ascending: false })
+            .limit(8),
+        ]);
+      if (cancelled) return;
+      const message = materialsError?.message || checkInsError?.message || recentError?.message;
+      if (message) setError(message);
+      setMaterialCount(materials ?? 0);
+      setCheckInCount(checkIns ?? 0);
+      setRecent(data ?? []);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <PageShell
@@ -35,42 +55,46 @@ export default async function DashboardPage() {
       description="Import your materials catalog, check in receipts with documents, then search inventory by product, heat, or serial."
     >
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="Catalog items" value={materialCount ?? 0} />
-        <Stat label="Check-ins" value={checkInCount ?? 0} />
+        <Stat label="Catalog items" value={loading ? "…" : materialCount} />
+        <Stat label="Check-ins" value={loading ? "…" : checkInCount} />
         <Stat label="Signed in" value={user?.email?.split("@")[0] ?? "—"} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <PrimaryButton href="/import" className="w-full">
+        <PrimaryButton to="/import" className="w-full">
           Import spreadsheet
         </PrimaryButton>
-        <PrimaryButton href="/check-in" className="w-full">
+        <PrimaryButton to="/check-in" className="w-full">
           Check in materials
         </PrimaryButton>
-        <SecondaryButton href="/inventory" className="w-full">
+        <SecondaryButton to="/inventory" className="w-full">
           View inventory
         </SecondaryButton>
       </div>
+
+      {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
 
       <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
         <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
             Recent check-ins
           </h2>
-          <Link href="/inventory" className="text-sm font-medium text-[var(--accent)]">
+          <Link to="/inventory" className="text-sm font-medium text-[var(--accent)]">
             See all
           </Link>
         </div>
-        {!recent?.length ? (
+        {!recent.length ? (
           <p className="px-4 py-8 text-sm text-[var(--muted)]">
-            No check-ins yet. Import a catalog, then check in your first receipt.
+            {loading
+              ? "Loading…"
+              : "No check-ins yet. Import a catalog, then check in your first receipt."}
           </p>
         ) : (
           <ul className="divide-y divide-[var(--border)]">
             {recent.map((row) => (
               <li key={row.id}>
                 <Link
-                  href={`/inventory/${row.id}`}
+                  to={`/inventory/${row.id}`}
                   className="flex flex-col gap-1 px-4 py-3 hover:bg-[var(--surface-2)] sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>

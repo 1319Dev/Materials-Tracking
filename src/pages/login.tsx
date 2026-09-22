@@ -1,20 +1,22 @@
-"use client";
-
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { FormEvent, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { authCallbackUrl, safeNextPath } from "@/lib/paths";
+import { supabase } from "@/lib/supabase";
 import { Field, PrimaryButton, SecondaryButton, inputClassName } from "@/components/ui";
 
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/dashboard";
+export function LoginPage() {
+  const location = useLocation();
+  const stateNext = (location.state as { next?: string } | null)?.next;
+  const params = new URLSearchParams(location.search);
+  const next = safeNextPath(stateNext || params.get("next"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    params.get("error_description") ||
+      (params.get("error") ? "Sign-in link was rejected. Request a new one." : null),
+  );
   const [busy, setBusy] = useState(false);
 
   async function onPasswordSignIn(e: FormEvent) {
@@ -22,7 +24,6 @@ function LoginForm() {
     setBusy(true);
     setError(null);
     setMessage(null);
-    const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -30,21 +31,17 @@ function LoginForm() {
     setBusy(false);
     if (signInError) {
       setError(signInError.message);
-      return;
     }
-    router.push(next);
-    router.refresh();
   }
 
   async function onMagicLink() {
     setBusy(true);
     setError(null);
     setMessage(null);
-    const supabase = createClient();
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        emailRedirectTo: authCallbackUrl(next),
       },
     });
     setBusy(false);
@@ -52,16 +49,14 @@ function LoginForm() {
       setError(otpError.message);
       return;
     }
-    setMessage("Check your email for the magic link.");
+    setMessage("Check your email for the magic link. Open it in this browser.");
   }
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-semibold">Sign in</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Use email/password or a magic link.
-        </p>
+        <p className="mt-1 text-sm text-[var(--muted)]">Use email/password or a magic link.</p>
       </div>
 
       <form onSubmit={onPasswordSignIn} className="space-y-4">
@@ -103,18 +98,10 @@ function LoginForm() {
 
       <p className="text-sm text-[var(--muted)]">
         Need an account?{" "}
-        <Link href="/signup" className="font-medium text-[var(--accent)]">
+        <Link to="/signup" className="font-medium text-[var(--accent)]">
           Sign up
         </Link>
       </p>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<p className="text-sm text-[var(--muted)]">Loading…</p>}>
-      <LoginForm />
-    </Suspense>
   );
 }

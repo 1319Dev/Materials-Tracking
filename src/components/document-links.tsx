@@ -1,8 +1,6 @@
-"use client";
-
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import type { DocumentRow } from "@/lib/database.types";
+import { supabase } from "@/lib/supabase";
 
 const DOC_LABELS: Record<DocumentRow["doc_type"], string> = {
   packing_list: "Packing list",
@@ -16,7 +14,6 @@ export function DocumentLinks({ documents }: { documents: DocumentRow[] }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const supabase = createClient();
       const next: Record<string, string> = {};
       for (const doc of documents) {
         const { data, error } = await supabase.storage
@@ -38,9 +35,7 @@ export function DocumentLinks({ documents }: { documents: DocumentRow[] }) {
       {documents.map((doc) => (
         <li key={doc.id} className="flex items-center justify-between gap-3 py-3">
           <div>
-            <p className="text-sm font-medium text-[var(--ink)]">
-              {DOC_LABELS[doc.doc_type]}
-            </p>
+            <p className="text-sm font-medium text-[var(--ink)]">{DOC_LABELS[doc.doc_type]}</p>
             <p className="text-xs text-[var(--muted)]">{doc.file_name}</p>
           </div>
           {urls[doc.id] ? (

@@ -1,16 +1,12 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 
 export function SignOutButton() {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   async function signOut() {
-    const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    navigate("/login", { replace: true });
   }
 
   return (

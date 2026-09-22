@@ -1,13 +1,10 @@
-"use client";
-
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { Link } from "react-router-dom";
 import { Field, PrimaryButton, inputClassName } from "@/components/ui";
+import { authCallbackUrl } from "@/lib/paths";
+import { supabase } from "@/lib/supabase";
 
-export default function SignupPage() {
-  const router = useRouter();
+export function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -19,12 +16,11 @@ export default function SignupPage() {
     setBusy(true);
     setError(null);
     setMessage(null);
-    const supabase = createClient();
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        emailRedirectTo: authCallbackUrl("/dashboard"),
       },
     });
     setBusy(false);
@@ -32,11 +28,7 @@ export default function SignupPage() {
       setError(signUpError.message);
       return;
     }
-    if (data.session) {
-      router.push("/dashboard");
-      router.refresh();
-      return;
-    }
+    if (data.session) return;
     setMessage("Account created. Check your email to confirm, then sign in.");
   }
 
@@ -80,7 +72,7 @@ export default function SignupPage() {
 
       <p className="text-sm text-[var(--muted)]">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-[var(--accent)]">
+        <Link to="/login" className="font-medium text-[var(--accent)]">
           Sign in
         </Link>
       </p>
