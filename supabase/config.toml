@@ -1,0 +1,10 @@
+# Minimal config for Supabase CLI (optional local linking).
+# Schema lives in supabase/migrations/.
+
+project_id = "lyyatwmavvcubvqlcjyw"
+
+[api]
+enabled = true
+
+[db]
+major_version = 17

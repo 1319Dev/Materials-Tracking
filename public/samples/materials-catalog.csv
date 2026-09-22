@@ -1,0 +1,5 @@
+product_code,product_name,description,size,material_grade,manufacturer,unit,requires_serial,heat_number_required
+PIPE-12-X42,12in API 5L X42 Line Pipe,Beveled ends,12in,X42,Example Mill,ft,false,true
+ELL-6-90-STD,6in 90 Elbow STD,Long radius,6in,A234 WPB,Example Fitting Co,ea,false,true
+VALVE-8-BALL,8in Ball Valve Flanged,Full port,8in,A105,Example Valve Inc,ea,true,true
+FLANGE-4-WN,4in Weld Neck Flange,150 RF,4in,A105,Example Flange Co,ea,false,true
