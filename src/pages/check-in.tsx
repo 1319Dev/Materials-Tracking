@@ -1,11 +1,9 @@
-"use client";
-
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { PageShell } from "@/components/page-shell";
 import { Field, PrimaryButton, inputClassName } from "@/components/ui";
-import { createClient } from "@/lib/supabase/client";
 import type { Material } from "@/lib/database.types";
+import { supabase } from "@/lib/supabase";
 
 type DocPick = {
   packingList: File | null;
@@ -16,8 +14,8 @@ function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_");
 }
 
-export default function CheckInPage() {
-  const router = useRouter();
+export function CheckInPage() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [materials, setMaterials] = useState<Material[]>([]);
   const [selected, setSelected] = useState<Material | null>(null);
@@ -34,7 +32,6 @@ export default function CheckInPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const supabase = createClient();
       const { data, error: loadError } = await supabase
         .from("materials")
         .select("*")
@@ -95,7 +92,6 @@ export default function CheckInPage() {
     }
 
     setBusy(true);
-    const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -131,10 +127,10 @@ export default function CheckInPage() {
     if (docs.mtr) uploads.push({ file: docs.mtr, doc_type: "mtr" });
 
     for (const upload of uploads) {
-      const path = `${user.id}/${checkIn.id}/${upload.doc_type}-${Date.now()}-${sanitizeFileName(upload.file.name)}`;
+      const storagePath = `${user.id}/${checkIn.id}/${upload.doc_type}-${Date.now()}-${sanitizeFileName(upload.file.name)}`;
       const { error: storageError } = await supabase.storage
         .from("material-documents")
-        .upload(path, upload.file, {
+        .upload(storagePath, upload.file, {
           contentType: upload.file.type || undefined,
           upsert: false,
         });
@@ -147,7 +143,7 @@ export default function CheckInPage() {
         user_id: user.id,
         check_in_id: checkIn.id,
         doc_type: upload.doc_type,
-        storage_path: path,
+        storage_path: storagePath,
         file_name: upload.file.name,
         mime_type: upload.file.type || null,
       });
@@ -159,8 +155,7 @@ export default function CheckInPage() {
     }
 
     setBusy(false);
-    router.push(`/inventory/${checkIn.id}`);
-    router.refresh();
+    navigate(`/inventory/${checkIn.id}`);
   }
 
   return (

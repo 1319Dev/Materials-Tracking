@@ -2,30 +2,37 @@
   "name": "materials-tracking",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "description": "Pipeline materials catalog, check-in, and document tracking. Static site for GitHub Pages.",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.116.0",
-    "next": "16.3.5",
     "papaparse": "^5.7.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.9.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@eslint/js": "^9.36.0",
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/node": "^20.19.17",
     "@types/papaparse": "^5.5.2",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.5",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.1",
+    "@vitejs/plugin-react": "^5.0.3",
+    "eslint": "^9.36.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.22",
+    "globals": "^15.15.0",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.44.1",
+    "vite": "^7.1.6"
   }
 }

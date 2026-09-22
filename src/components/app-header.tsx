@@ -1,40 +1,41 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { NavLink } from "react-router-dom";
+import { useAuth } from "@/auth/auth-context";
 import { SignOutButton } from "@/components/sign-out-button";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/import", label: "Import" },
-  { href: "/check-in", label: "Check in" },
-  { href: "/inventory", label: "Inventory" },
+  { to: "/dashboard", label: "Dashboard" },
+  { to: "/import", label: "Import" },
+  { to: "/check-in", label: "Check in" },
+  { to: "/inventory", label: "Inventory" },
 ];
 
-export async function AppHeader() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export function AppHeader() {
+  const { user } = useAuth();
 
   return (
     <header className="border-b border-[var(--border)] bg-[var(--surface)]">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center justify-between gap-4">
-          <Link href="/dashboard" className="font-semibold tracking-tight text-[var(--ink)]">
+          <NavLink to="/dashboard" className="font-semibold tracking-tight text-[var(--ink)]">
             Materials Tracking
-          </Link>
+          </NavLink>
           {user?.email ? (
             <p className="truncate text-xs text-[var(--muted)] sm:hidden">{user.email}</p>
           ) : null}
         </div>
         <nav className="flex flex-wrap items-center gap-1">
           {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-md px-3 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]"
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--surface-2)] ${
+                  isActive ? "bg-[var(--surface-2)] text-[var(--accent)]" : "text-[var(--ink)]"
+                }`
+              }
             >
               {item.label}
-            </Link>
+            </NavLink>
           ))}
           <div className="ml-auto flex items-center gap-2 sm:ml-3">
             {user?.email ? (

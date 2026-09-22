@@ -1,74 +1,112 @@
 # Materials Tracking
 
-Field-friendly web app for pipeline materials: import a catalog spreadsheet, check in received material with heat/serial numbers, and attach packing lists and MTRs.
+Field-friendly web app for pipeline materials: import a catalog spreadsheet, check in received material with heat and serial numbers, and attach packing lists and MTRs.
+
+Hosted as a **static site on GitHub Pages** (same pattern as Utility Inspector): Vite build → `dist/` → `gh-pages` branch.
+
+Live site: [https://1319dev.github.io/Materials-Tracking/](https://1319dev.github.io/Materials-Tracking/)
 
 ## Stack
 
-- Next.js (App Router) + TypeScript + Tailwind CSS
-- Supabase (Postgres + Auth + Storage) via `@supabase/ssr`
+- Vite + React + TypeScript + Tailwind CSS
+- Supabase (Postgres + Auth + Storage) via `@supabase/supabase-js` in the browser
+- Row Level Security: each signed-in user only sees their own catalog, check-ins, and files
+- Anon key only. No server, no Vercel, no Netlify
 
-## Setup
+## Quick start
 
-1. **Clone and install**
+```bash
+npm install
+cp .env.example .env.local
+# fill VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm run dev
+```
 
-   ```bash
-   npm install
-   ```
+Open [http://localhost:5173/Materials-Tracking/](http://localhost:5173/Materials-Tracking/).
 
-2. **Environment variables**
+```bash
+npm run build     # static files in dist/ (includes 404.html for Pages)
+npm run preview   # serve the production build
+npm run lint
+```
 
-   Copy `.env.example` to `.env.local` and fill in values from your Supabase project (**Settings → API**):
+## Database and storage
 
-   ```bash
-   NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
-   ```
+Apply `supabase/migrations/` to the Supabase project (SQL Editor, or `supabase db push` if the CLI is linked).
 
-   Never commit `.env.local` or real secrets.
+This creates:
 
-3. **Database & storage**
+- `import_batches`, `materials`, `check_ins`, `documents` (RLS: users only see their own rows)
+- Storage bucket `material-documents` (private; first path folder must be `auth.uid()`)
 
-   Apply the SQL migration in `supabase/migrations/` to your Supabase project (SQL Editor, or Supabase CLI `supabase db push` if linked).
+## Deploy → GitHub Pages
 
-   This creates:
+The site is a project page, so every asset and route lives under `/Materials-Tracking/`. `vite.config.ts` sets `base` to that path. `npm run build` writes `dist/index.html`, copies it to `dist/404.html` (so deep links such as `/auth/callback` load the app), and adds `dist/.nojekyll`.
 
-   - `import_batches`, `materials`, `check_ins`, `documents` (RLS: users only see their own rows)
-   - Storage bucket `material-documents` (private; path prefix = `auth.uid()`)
+### 1. Repository secrets
 
-4. **Auth**
+In the GitHub repo: **Settings → Secrets and variables → Actions → New repository secret**
 
-   In Supabase Auth settings, enable **Email** provider (password and/or magic link).
+| Secret | Value |
+| --- | --- |
+| `VITE_SUPABASE_URL` | `https://YOUR_PROJECT.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Project **anon** / publishable key (Settings → API) |
 
-   Add your app URL to **Redirect URLs**, e.g. `http://localhost:3000/auth/callback` and your production callback URL.
+These are baked into the static bundle at build time. They are public in the browser by design. Do not put the `service_role` key in either secret.
 
-5. **Run**
+### 2. Let Actions publish `gh-pages`
 
-   ```bash
-   npm run dev
-   ```
+Workflow: `.github/workflows/deploy-github-pages.yml`
 
-   Open [http://localhost:3000](http://localhost:3000), sign up, then:
+- Pull requests run `npm run build` only.
+- A push to `main` (and **Actions → Deploy GitHub Pages → Run workflow**) builds and pushes `dist/` to the `gh-pages` branch with `peaceiris/actions-gh-pages`.
 
-   - **Import** a CSV/XLSX (sample: `/samples/materials-catalog.csv`)
-   - **Check in** materials with heat/serial + packing list / MTR
-   - **Inventory** to search by product, heat, or serial
+### 3. Turn on Pages
+
+**Settings → Pages → Build and deployment**
+
+- Source: **Deploy from a branch**
+- Branch: **`gh-pages`** / **`/ (root)`**
+
+Save. The site is [https://1319dev.github.io/Materials-Tracking/](https://1319dev.github.io/Materials-Tracking/). The first publish creates `gh-pages`; if Pages was already pointed at another branch, switch it to `gh-pages`.
+
+### 4. Supabase Auth URLs
+
+**Authentication → URL configuration**
+
+- **Site URL:** `https://1319dev.github.io/Materials-Tracking/`
+- **Redirect URLs** (add each):
+  - `https://1319dev.github.io/Materials-Tracking/auth/callback`
+  - `http://localhost:5173/Materials-Tracking/auth/callback`
+
+Enable the **Email** provider (password and/or magic link).
+
+Magic links use the PKCE flow (`flowType: 'pkce'`, `detectSessionInUrl: true`). The email must be opened in the **same browser** that requested it, because the code verifier stays in that browser’s local storage. The callback route also accepts `token_hash` + `type` (the documented PKCE email-template form) and hash tokens.
+
+## Using the app
+
+Sign up, then:
+
+- **Import** a CSV or XLSX (sample: `/Materials-Tracking/samples/materials-catalog.csv`)
+- **Check in** a product with heat number, serial when the catalog says it is required, quantity, notes, and optional packing list / MTR uploads
+- **Inventory** to search by product, heat, or serial and open attached documents
 
 ## Scripts
 
-| Command        | Description              |
-| -------------- | ------------------------ |
-| `npm run dev`  | Local development server |
-| `npm run build`| Production build         |
-| `npm run start`| Serve production build   |
-| `npm run lint` | ESLint                   |
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Vite dev server at `/Materials-Tracking/` |
+| `npm run build` | Typecheck and static production build in `dist/` |
+| `npm run preview` | Serve `dist/` |
+| `npm run lint` | ESLint |
 
-## Data model (summary)
+## Data model
 
-| Table            | Purpose                                      |
-| ---------------- | -------------------------------------------- |
-| `materials`      | Catalog from spreadsheet import              |
-| `import_batches` | Import run metadata                          |
-| `check_ins`      | Received material (heat, serial, qty, notes) |
-| `documents`      | Packing list / MTR / other file metadata     |
+| Table | Purpose |
+| --- | --- |
+| `materials` | Catalog from spreadsheet import |
+| `import_batches` | Import run metadata |
+| `check_ins` | Received material (heat, serial, qty, notes) |
+| `documents` | Packing list / MTR / other file metadata |
 
 Out of scope for v1: multi-tenant orgs, barcodes, offline, native apps.
