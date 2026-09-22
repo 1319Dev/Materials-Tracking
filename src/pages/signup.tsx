@@ -1,10 +1,15 @@
 import { FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
-import { Field, PrimaryButton, inputClassName } from "@/components/ui";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/auth-context";
+import { SetupRequired } from "@/components/setup-required";
+import { Field, PrimaryButton, SecondaryButton, inputClassName } from "@/components/ui";
 import { authCallbackUrl } from "@/lib/paths";
-import { supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 export function SignupPage() {
+  const navigate = useNavigate();
+  const { enterGuest } = useAuth();
+  const configured = isSupabaseConfigured();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -32,6 +37,11 @@ export function SignupPage() {
     setMessage("Account created. Check your email to confirm, then sign in.");
   }
 
+  function onContinueWithoutSignIn() {
+    enterGuest();
+    navigate("/dashboard", { replace: true });
+  }
+
   return (
     <div className="space-y-5">
       <div>
@@ -41,7 +51,8 @@ export function SignupPage() {
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="space-y-4">
+      {configured ? (
+        <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Email">
           <input
             className={inputClassName}
@@ -68,7 +79,14 @@ export function SignupPage() {
         <PrimaryButton type="submit" disabled={busy} className="w-full">
           Sign up
         </PrimaryButton>
-      </form>
+        </form>
+      ) : (
+        <SetupRequired />
+      )}
+
+      <SecondaryButton type="button" onClick={onContinueWithoutSignIn} className="w-full">
+        Continue without signing in
+      </SecondaryButton>
 
       <p className="text-sm text-[var(--muted)]">
         Already have an account?{" "}

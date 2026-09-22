@@ -1,11 +1,16 @@
 import { FormEvent, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { authCallbackUrl, safeNextPath } from "@/lib/paths";
-import { supabase } from "@/lib/supabase";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/auth-context";
+import { SetupRequired } from "@/components/setup-required";
 import { Field, PrimaryButton, SecondaryButton, inputClassName } from "@/components/ui";
+import { authCallbackUrl, safeNextPath } from "@/lib/paths";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 export function LoginPage() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { enterGuest } = useAuth();
+  const configured = isSupabaseConfigured();
   const stateNext = (location.state as { next?: string } | null)?.next;
   const params = new URLSearchParams(location.search);
   const next = safeNextPath(stateNext || params.get("next"));
@@ -52,14 +57,37 @@ export function LoginPage() {
     setMessage("Check your email for the magic link. Open it in this browser.");
   }
 
+  function onContinueWithoutSignIn() {
+    enterGuest();
+    navigate(next, { replace: true });
+  }
+
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-semibold">Sign in</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">Use email/password or a magic link.</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          Browse the app with sample data, or use email and password.
+        </p>
       </div>
 
-      <form onSubmit={onPasswordSignIn} className="space-y-4">
+      <div className="space-y-2">
+        <PrimaryButton type="button" onClick={onContinueWithoutSignIn} className="w-full">
+          Continue without signing in
+        </PrimaryButton>
+        <p className="text-center text-xs text-[var(--muted)]">
+          Opens the dashboard, import, check-in, and inventory. Sample rows stay on this device.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        <span className="h-px flex-1 bg-[var(--border)]" />
+        or sign in
+        <span className="h-px flex-1 bg-[var(--border)]" />
+      </div>
+
+      {configured ? (
+        <form onSubmit={onPasswordSignIn} className="space-y-4">
         <Field label="Email">
           <input
             className={inputClassName}
@@ -94,7 +122,10 @@ export function LoginPage() {
             Send magic link
           </SecondaryButton>
         </div>
-      </form>
+        </form>
+      ) : (
+        <SetupRequired />
+      )}
 
       <p className="text-sm text-[var(--muted)]">
         Need an account?{" "}

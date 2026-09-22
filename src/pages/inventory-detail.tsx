@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useGuestData } from "@/auth/auth-context";
 import { DocumentLinks } from "@/components/document-links";
 import { PageShell } from "@/components/page-shell";
 import { SecondaryButton } from "@/components/ui";
+import { loadCheckInDetail } from "@/lib/app-data";
 import type { CheckIn, DocumentRow, Material } from "@/lib/database.types";
-import { supabase } from "@/lib/supabase";
 
 function formatWhen(value: string) {
   return new Date(value).toLocaleString(undefined, {
@@ -15,6 +16,7 @@ function formatWhen(value: string) {
 
 export function InventoryDetailPage() {
   const { id = "" } = useParams();
+  const local = useGuestData();
   const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
   const [material, setMaterial] = useState<Material | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
@@ -26,48 +28,24 @@ export function InventoryDetailPage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { data, error: loadError } = await supabase
-        .from("check_ins")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
-
+      setMissing(false);
+      const result = await loadCheckInDetail(local, id);
       if (cancelled) return;
-      if (loadError) {
-        setError(loadError.message);
-        setLoading(false);
-        return;
-      }
-      if (!data) {
+      if (result.error) setError(result.error);
+      if (!result.checkIn) {
         setMissing(true);
         setLoading(false);
         return;
       }
-
-      const [{ data: docs, error: docsError }, materialResult] = await Promise.all([
-        supabase
-          .from("documents")
-          .select("*")
-          .eq("check_in_id", id)
-          .order("created_at", { ascending: true }),
-        data.material_id
-          ? supabase.from("materials").select("*").eq("id", data.material_id).maybeSingle()
-          : Promise.resolve({ data: null, error: null }),
-      ]);
-
-      if (cancelled) return;
-      if (docsError || materialResult.error) {
-        setError(docsError?.message || materialResult.error?.message || "Failed to load details");
-      }
-      setCheckIn(data);
-      setDocuments(docs ?? []);
-      setMaterial(materialResult.data);
+      setCheckIn(result.checkIn);
+      setDocuments(result.documents);
+      setMaterial(result.material);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, local]);
 
   if (loading) {
     return (
