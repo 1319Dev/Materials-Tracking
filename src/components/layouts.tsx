@@ -17,7 +17,7 @@ export function AuthLayout() {
           Materials Tracking
         </p>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Catalog import, material check-in, packing lists &amp; MTRs
+          Check in deliveries, confirm the packing list, and track what is still on hand
         </p>
       </div>
       <div className="w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">

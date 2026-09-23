@@ -3,10 +3,11 @@ import { useAuth, useGuestData } from "@/auth/auth-context";
 import { SignOutButton } from "@/components/sign-out-button";
 
 const NAV = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/import", label: "Import" },
+  { to: "/dashboard", label: "Home" },
+  { to: "/import", label: "BOM" },
+  { to: "/packing-list", label: "Confirm" },
   { to: "/check-in", label: "Check in" },
-  { to: "/inventory", label: "Inventory" },
+  { to: "/inventory", label: "On hand" },
 ];
 
 export function AppHeader() {
@@ -14,7 +15,7 @@ export function AppHeader() {
   const guest = useGuestData();
 
   return (
-    <header className="border-b border-[var(--border)] bg-[var(--surface)]">
+    <header className="no-print border-b border-[var(--border)] bg-[var(--surface)]">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center justify-between gap-4">
           <NavLink to="/dashboard" className="font-semibold tracking-tight text-[var(--ink)]">

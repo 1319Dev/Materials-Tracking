@@ -1,6 +1,6 @@
 # Materials Tracking
 
-Field-friendly web app for pipeline materials: import a catalog spreadsheet, check in received material with heat and serial numbers, and attach packing lists and MTRs.
+Field-friendly web app for a pipeline materials coordinator: import a bill of materials, check deliveries in, confirm the packing list line by line, and track on hand, ordered, issued, and remaining. Missing MTRs open a prefilled request you can edit, print, or copy.
 
 Hosted as a **static site on GitHub Pages** (same pattern as Utility Inspector): Vite build → `dist/` → `gh-pages` branch.
 
@@ -36,7 +36,9 @@ Apply `supabase/migrations/` to the Supabase project (SQL Editor, or `supabase d
 
 This creates:
 
-- `import_batches`, `materials`, `check_ins`, `documents` (RLS: users only see their own rows)
+- `import_batches`, `materials`, `check_ins`, `documents`, `material_issues` (RLS: users only see their own rows)
+- BOM fields on `materials`: ordered qty, issued qty, project, construction order, size, wall/SDR, steel grade, model, ANSI rating, heat/lot/serial, packing-list status
+- On hand is received (sum of check-ins) minus issued. Remaining is ordered minus issued when the line has an order qty.
 - Storage bucket `material-documents` (private; first path folder must be `auth.uid()`)
 
 ## Deploy → GitHub Pages
@@ -85,13 +87,15 @@ Magic links use the PKCE flow (`flowType: 'pkce'`, `detectSessionInUrl: true`). 
 
 ## Using the app
 
-Open the site and choose **Continue without signing in** to browse the dashboard, import, check-in, and inventory with sample catalog data stored in this browser. Email sign-in and magic links stay available when you want to save to Supabase.
+Open the site and choose **Continue without signing in** to walk a sample pipeline job stored in this browser. Email sign-in and magic links stay available when you want to save to Supabase.
 
-With an account:
+With an account, or as a guest:
 
-- **Import** a CSV or XLSX (sample: `/Materials-Tracking/samples/materials-catalog.csv`)
-- **Check in** a product with heat number, serial when the catalog says it is required, quantity, notes, and optional packing list / MTR uploads
-- **Inventory** to search by product, heat, or serial and open attached documents
+- **BOM** — import Garrett's bill of materials (sample: `/Materials-Tracking/samples/pipeline-bom.xlsx`). Headers are detected below the title block, including merged cells.
+- **Confirm** — mark each packing-list line full, partial, or missing. Received quantities become check-ins and update on hand.
+- **Check in** — one delivery: description, heat / lot / serial, qty received, packing list and MTR uploads.
+- **On hand** — per material and job: on hand, ordered, issued, and remaining. Issue qty out to the job from the sheet.
+- **Request MTR** — when a line has no mill cert, open Garrett's MTR REQUEST FORM. It is filled from the BOM and check-in (Material Description, Diameter, Wall Thickness, Grade, Heat Number, Manufacturer, Atmos Project #, Sales Order# / Customer PO #, Shipment # (MRC)). Inspector Name and Vendor stay blank. Edit it, then print or download the workbook.
 
 ## Scripts
 
@@ -106,9 +110,10 @@ With an account:
 
 | Table | Purpose |
 | --- | --- |
-| `materials` | Catalog from spreadsheet import |
+| `materials` | BOM lines: identity, job, ordered qty, issued qty, packing-list status |
 | `import_batches` | Import run metadata |
-| `check_ins` | Received material (heat, serial, qty, notes) |
+| `check_ins` | Received material (heat, lot, serial, shipment #, qty, notes) |
+| `material_issues` | Quantity issued out to the job |
 | `documents` | Packing list / MTR / other file metadata |
 
 Out of scope for v1: multi-tenant orgs, barcodes, offline, native apps.

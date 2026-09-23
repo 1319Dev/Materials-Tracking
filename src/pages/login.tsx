@@ -67,7 +67,7 @@ export function LoginPage() {
       <div>
         <h1 className="text-xl font-semibold">Sign in</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Browse the app with sample data, or use email and password.
+          Walk a sample pipeline job on this device, or sign in to save to the cloud.
         </p>
       </div>
 
@@ -76,7 +76,7 @@ export function LoginPage() {
           Continue without signing in
         </PrimaryButton>
         <p className="text-center text-xs text-[var(--muted)]">
-          Opens the dashboard, import, check-in, and inventory. Sample rows stay on this device.
+          Opens the sample BOM, packing-list confirm, on-hand sheet, and MTR request. Changes stay on this device.
         </p>
       </div>
 
