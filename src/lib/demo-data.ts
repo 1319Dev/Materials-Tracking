@@ -1,10 +1,13 @@
-import type { CheckIn, DocumentRow, Material } from "@/lib/database.types";
+import type { CheckIn, DocumentRow, Material, MaterialIssue, PackingListStatus } from "@/lib/database.types";
+import { derivePackingStatus, splitHeatLotSerial } from "@/lib/quantities";
+import { SAMPLE_BOM_LINES, type SampleBomLine } from "@/lib/sample-bom";
 
 export type GuestData = {
-  version: 1;
+  version: 2;
   materials: Material[];
   checkIns: CheckIn[];
   documents: DocumentRow[];
+  issues: MaterialIssue[];
 };
 
 const GUEST_USER_ID = "guest";
@@ -21,289 +24,255 @@ function atDaysAgo(days: number, hour: number) {
   return date.toISOString();
 }
 
-function demoMaterial(
-  row: Omit<
-    Material,
-    | "user_id"
-    | "created_at"
-    | "updated_at"
-    | "import_batch_id"
-    | "source_row"
-    | "description"
-    | "manufacturer"
-    | "unit"
-  > &
-    Partial<Pick<Material, "description" | "manufacturer" | "unit">>,
-  createdAt: string,
-): Material {
+function materialFromLine(line: SampleBomLine, createdAt: string, status: PackingListStatus): Material {
   return {
-    ...row,
+    id: line.id,
     user_id: GUEST_USER_ID,
-    created_at: createdAt,
-    updated_at: createdAt,
+    product_code: line.item,
+    product_name: line.description,
+    description: line.description,
+    size: line.sizeInches,
+    size_inches: line.sizeInches,
+    material_grade: line.steelGrade || null,
+    steel_grade: line.steelGrade || null,
+    wall_sdr: line.wallSdr || null,
+    manufacturer: line.manufacturer || null,
+    model_number: line.modelNumber || null,
+    ansi_rating: line.ansiRating || null,
+    heat_lot_serial: line.heatLotSerial || null,
+    project_number: line.projectNumber,
+    construction_order: line.constructionOrder,
+    ordered_qty: line.orderedQty,
+    issued_qty: 0,
+    unit: line.unit,
+    requires_serial: line.requiresSerial,
+    heat_number_required: true,
+    packing_list_status: status,
     import_batch_id: DEMO_BATCH_ID,
     source_row: null,
-    description: row.description ?? null,
-    manufacturer: row.manufacturer ?? null,
-    unit: row.unit ?? "ea",
+    created_at: createdAt,
+    updated_at: createdAt,
   };
 }
 
-/** Sample catalog and receipts so guest mode is not an empty shell. */
+type ReceiptSeed = {
+  id: string;
+  materialId: string;
+  quantity: number;
+  daysAgo: number;
+  hour: number;
+  notes: string | null;
+  packingList?: string;
+  mtr?: string;
+  heat?: string;
+  lot?: string;
+  serial?: string;
+};
+
+type IssueSeed = {
+  id: string;
+  materialId: string;
+  quantity: number;
+  daysAgo: number;
+  hour: number;
+  notes: string;
+};
+
+/** Sample job so guest mode opens on a real coordinator sheet, not an empty catalog. */
 export function createDemoGuestData(): GuestData {
   const seededAt = atDaysAgo(21, 8);
+  const identity = new Map(SAMPLE_BOM_LINES.map((line) => [line.id, splitHeatLotSerial(line.heatLotSerial)]));
 
-  const materials: Material[] = [
-    demoMaterial(
-      {
-        id: "demo-mat-pipe-12",
-        product_code: "PIPE-12-X42",
-        product_name: "12in API 5L X42 Line Pipe",
-        description: "Beveled ends",
-        size: "12in",
-        material_grade: "X42",
-        manufacturer: "Example Mill",
-        unit: "ft",
-        requires_serial: false,
-        heat_number_required: true,
-      },
-      seededAt,
-    ),
-    demoMaterial(
-      {
-        id: "demo-mat-ell-6",
-        product_code: "ELL-6-90-STD",
-        product_name: "6in 90 Elbow STD",
-        description: "Long radius",
-        size: "6in",
-        material_grade: "A234 WPB",
-        manufacturer: "Example Fitting Co",
-        unit: "ea",
-        requires_serial: false,
-        heat_number_required: true,
-      },
-      seededAt,
-    ),
-    demoMaterial(
-      {
-        id: "demo-mat-valve-8",
-        product_code: "VALVE-8-BALL",
-        product_name: "8in Ball Valve Flanged",
-        description: "Full port",
-        size: "8in",
-        material_grade: "A105",
-        manufacturer: "Example Valve Inc",
-        unit: "ea",
-        requires_serial: true,
-        heat_number_required: true,
-      },
-      seededAt,
-    ),
-    demoMaterial(
-      {
-        id: "demo-mat-flange-4",
-        product_code: "FLANGE-4-WN",
-        product_name: "4in Weld Neck Flange",
-        description: "150 RF",
-        size: "4in",
-        material_grade: "A105",
-        manufacturer: "Example Flange Co",
-        unit: "ea",
-        requires_serial: false,
-        heat_number_required: true,
-      },
-      seededAt,
-    ),
-    demoMaterial(
-      {
-        id: "demo-mat-tee-6",
-        product_code: "TEE-6-STD",
-        product_name: "6in Straight Tee STD",
-        description: "Butt weld",
-        size: "6in",
-        material_grade: "A234 WPB",
-        manufacturer: "Example Fitting Co",
-        unit: "ea",
-        requires_serial: false,
-        heat_number_required: true,
-      },
-      seededAt,
-    ),
-    demoMaterial(
-      {
-        id: "demo-mat-red-8x6",
-        product_code: "RED-8X6",
-        product_name: "8x6 Concentric Reducer",
-        description: "Butt weld",
-        size: "8x6",
-        material_grade: "A234 WPB",
-        manufacturer: "Example Fitting Co",
-        unit: "ea",
-        requires_serial: false,
-        heat_number_required: true,
-      },
-      seededAt,
-    ),
-    demoMaterial(
-      {
-        id: "demo-mat-gasket-8",
-        product_code: "GASKET-8-150",
-        product_name: "8in Spiral Wound Gasket",
-        description: "150 RF",
-        size: "8in",
-        material_grade: "316/Graphite",
-        manufacturer: "Example Gasket Co",
-        unit: "ea",
-        requires_serial: false,
-        heat_number_required: false,
-      },
-      seededAt,
-    ),
-    demoMaterial(
-      {
-        id: "demo-mat-bolt-8",
-        product_code: "BOLT-8-B7",
-        product_name: "8in B7 Stud Bolt Kit",
-        description: "150 flange set",
-        size: "8in",
-        material_grade: "B7/2H",
-        manufacturer: "Example Bolt Co",
-        unit: "kit",
-        requires_serial: false,
-        heat_number_required: false,
-      },
-      seededAt,
-    ),
-    demoMaterial(
-      {
-        id: "demo-mat-cap-12",
-        product_code: "CAP-12-STD",
-        product_name: "12in Weld Cap",
-        description: "STD weight",
-        size: "12in",
-        material_grade: "A234 WPB",
-        manufacturer: "Example Fitting Co",
-        unit: "ea",
-        requires_serial: false,
-        heat_number_required: true,
-      },
-      seededAt,
-    ),
-    demoMaterial(
-      {
-        id: "demo-mat-valve-2",
-        product_code: "VALVE-2-GATE",
-        product_name: "2in Gate Valve",
-        description: "NPT",
-        size: "2in",
-        material_grade: "A105",
-        manufacturer: "Example Valve Inc",
-        unit: "ea",
-        requires_serial: true,
-        heat_number_required: true,
-      },
-      seededAt,
-    ),
-  ];
-
-  const pipeAt = atDaysAgo(2, 14);
-  const elbowAt = atDaysAgo(5, 10);
-  const valveAt = atDaysAgo(1, 9);
-  const flangeAt = atDaysAgo(9, 15);
-
-  const checkIns: CheckIn[] = [
-    {
-      id: "demo-ci-valve-8",
-      user_id: GUEST_USER_ID,
-      material_id: "demo-mat-valve-8",
-      product_name: "8in Ball Valve Flanged",
-      product_code: "VALVE-8-BALL",
-      heat_number: "H9002",
-      serial_number: "BV-1044",
-      quantity: 1,
-      notes: "PO 4412 — laydown yard",
-      received_at: valveAt,
-      created_at: valveAt,
-    },
+  const receipts: ReceiptSeed[] = [
     {
       id: "demo-ci-pipe-12",
-      user_id: GUEST_USER_ID,
-      material_id: "demo-mat-pipe-12",
-      product_name: "12in API 5L X42 Line Pipe",
-      product_code: "PIPE-12-X42",
-      heat_number: "H4521",
-      serial_number: null,
-      quantity: 40,
-      notes: "Truck 18, yard 2",
-      received_at: pipeAt,
-      created_at: pipeAt,
+      materialId: "demo-mat-pipe-12",
+      quantity: 200,
+      daysAgo: 2,
+      hour: 14,
+      notes: "Truck 18, yard 2. Short 40 ft against the BOM.",
+      heat: "H-45219",
+      packingList: "DEMO PACKING LIST\n12 in API 5L PSL2 X52 line pipe\nItem P-12-X52\nHeat H-45219\nQty received 200 ft of 240 ft ordered\nProject 24-118 / CO-5521\nYard 2 / Truck 18",
+      mtr: "DEMO MTR\nHeat H-45219\nGrade X52\n12.75 in x 0.375 in API 5L PSL2\nAmerican Steel Pipe\n\nSample material test report stored on this device.",
     },
     {
       id: "demo-ci-ell-6",
-      user_id: GUEST_USER_ID,
-      material_id: "demo-mat-ell-6",
-      product_name: "6in 90 Elbow STD",
-      product_code: "ELL-6-90-STD",
-      heat_number: "H7781",
-      serial_number: null,
-      quantity: 12,
-      notes: null,
-      received_at: elbowAt,
-      created_at: elbowAt,
+      materialId: "demo-mat-ell-6",
+      quantity: 18,
+      daysAgo: 5,
+      hour: 10,
+      notes: "Full receipt against the packing list.",
+      heat: "H-77810",
+      packingList: "DEMO PACKING LIST\n6 in 90 LR elbow\nItem E-6-90\nHeat H-77810\nQty 18",
+      mtr: "DEMO MTR\nHeat H-77810\nA234 WPB\n6 in LR 90 elbow STD\nHackney Ladish",
+    },
+    {
+      id: "demo-ci-valve-8",
+      materialId: "demo-mat-valve-8",
+      quantity: 2,
+      daysAgo: 1,
+      hour: 9,
+      notes: "Two of four valves on the BOM. Mill cert was not in the crate.",
+      heat: "H-90021",
+      serial: "BV-4418",
+      packingList: "DEMO PACKING LIST\n8 in Class 600 ball valve\nItem V-8-600\nHeat H-90021\nSerial BV-4418\nQty received 2 of 4\nMTR not included",
     },
     {
       id: "demo-ci-flange-4",
-      user_id: GUEST_USER_ID,
-      material_id: "demo-mat-flange-4",
-      product_name: "4in Weld Neck Flange",
-      product_code: "FLANGE-4-WN",
-      heat_number: "H3310",
-      serial_number: null,
-      quantity: 8,
+      materialId: "demo-mat-flange-4",
+      quantity: 16,
+      daysAgo: 9,
+      hour: 15,
       notes: null,
-      received_at: flangeAt,
-      created_at: flangeAt,
+      heat: "H-33102",
+      packingList: "DEMO PACKING LIST\n4 in WN flange 600 RF\nItem F-4-WN\nHeat H-33102\nQty 16",
+      mtr: "DEMO MTR\nHeat H-33102\nA105\n4 in weld neck 600 RF\nBoltex",
+    },
+    {
+      id: "demo-ci-valve-2",
+      materialId: "demo-mat-valve-2",
+      quantity: 2,
+      daysAgo: 4,
+      hour: 11,
+      notes: null,
+      heat: "H-22091",
+      serial: "GV-2201",
+      packingList: "DEMO PACKING LIST\n2 in gate valve 800\nItem V-2-800\nHeat H-22091\nSerial GV-2201\nQty 2",
+      mtr: "DEMO MTR\nHeat H-22091\nA105\n2 in gate valve NPT\nBonney Forge\nSerial GV-2201",
+    },
+    {
+      id: "demo-ci-pipe-16",
+      materialId: "demo-mat-pipe-16",
+      quantity: 120,
+      daysAgo: 6,
+      hour: 13,
+      notes: "Second job, full receipt.",
+      heat: "H-61002",
+      packingList: "DEMO PACKING LIST\n16 in API 5L X65\nItem P-16-X65\nHeat H-61002\nQty 120 ft\nProject 24-204 / CO-5602",
+      mtr: "DEMO MTR\nHeat H-61002\nX65\n16 in x 0.500 in\nStupp",
     },
   ];
 
-  const documents: DocumentRow[] = [
+  const issueSeeds: IssueSeed[] = [
     {
-      id: "demo-doc-valve-pl",
-      user_id: GUEST_USER_ID,
-      check_in_id: "demo-ci-valve-8",
-      doc_type: "packing_list",
-      file_name: "packing-list-BV-1044.txt",
-      mime_type: "text/plain",
-      storage_path: textFileDataUrl(
-        "DEMO PACKING LIST\n8in Ball Valve Flanged\nCode VALVE-8-BALL\nHeat H9002\nSerial BV-1044\nQty 1\n\nSample file stored on this device. Sign in to save real documents to the cloud.",
-      ),
-      created_at: valveAt,
+      id: "demo-issue-pipe-12",
+      materialId: "demo-mat-pipe-12",
+      quantity: 80,
+      daysAgo: 1,
+      hour: 7,
+      notes: "Spread A, station 112+00",
     },
     {
-      id: "demo-doc-valve-mtr",
-      user_id: GUEST_USER_ID,
-      check_in_id: "demo-ci-valve-8",
-      doc_type: "mtr",
-      file_name: "mtr-H9002.txt",
-      mime_type: "text/plain",
-      storage_path: textFileDataUrl(
-        "DEMO MTR\nHeat H9002\nGrade A105\nProduct 8in Ball Valve Flanged\n\nSample material test report. Sign in to attach real PDFs.",
-      ),
-      created_at: valveAt,
+      id: "demo-issue-ell-6",
+      materialId: "demo-mat-ell-6",
+      quantity: 6,
+      daysAgo: 1,
+      hour: 8,
+      notes: "MLV-12 welds",
     },
     {
-      id: "demo-doc-pipe-pl",
-      user_id: GUEST_USER_ID,
-      check_in_id: "demo-ci-pipe-12",
-      doc_type: "packing_list",
-      file_name: "packing-list-H4521.txt",
-      mime_type: "text/plain",
-      storage_path: textFileDataUrl(
-        "DEMO PACKING LIST\n12in API 5L X42 Line Pipe\nHeat H4521\nQty 40 ft\nYard 2 / Truck 18",
-      ),
-      created_at: pipeAt,
+      id: "demo-issue-flange-4",
+      materialId: "demo-mat-flange-4",
+      quantity: 4,
+      daysAgo: 3,
+      hour: 16,
+      notes: "Launcher flange set",
+    },
+    {
+      id: "demo-issue-valve-2",
+      materialId: "demo-mat-valve-2",
+      quantity: 1,
+      daysAgo: 2,
+      hour: 15,
+      notes: "Blowdown assembly",
     },
   ];
 
-  return { version: 1, materials, checkIns, documents };
+  const receivedByMaterial = new Map<string, number>();
+  for (const receipt of receipts) {
+    receivedByMaterial.set(receipt.materialId, (receivedByMaterial.get(receipt.materialId) ?? 0) + receipt.quantity);
+  }
+  const issuedByMaterial = new Map<string, number>();
+  for (const issue of issueSeeds) {
+    issuedByMaterial.set(issue.materialId, (issuedByMaterial.get(issue.materialId) ?? 0) + issue.quantity);
+  }
+
+  const materials = SAMPLE_BOM_LINES.map((line) => {
+    const received = receivedByMaterial.get(line.id) ?? 0;
+    const markedMissing = line.id === "demo-mat-red-12x8";
+    const material = materialFromLine(
+      line,
+      seededAt,
+      derivePackingStatus(line.orderedQty, received, markedMissing),
+    );
+    material.issued_qty = issuedByMaterial.get(line.id) ?? 0;
+    return material;
+  });
+
+  const checkIns: CheckIn[] = receipts.map((receipt) => {
+    const line = SAMPLE_BOM_LINES.find((row) => row.id === receipt.materialId);
+    const fallback = identity.get(receipt.materialId);
+    const receivedAt = atDaysAgo(receipt.daysAgo, receipt.hour);
+    return {
+      id: receipt.id,
+      user_id: GUEST_USER_ID,
+      material_id: receipt.materialId,
+      product_name: line?.description ?? "Material",
+      product_code: line?.item ?? null,
+      heat_number: receipt.heat || fallback?.heat || "N/A",
+      lot_number: receipt.lot || fallback?.lot || null,
+      serial_number: receipt.serial || fallback?.serial || null,
+      quantity: receipt.quantity,
+      notes: receipt.notes,
+      received_at: receivedAt,
+      created_at: receivedAt,
+    };
+  });
+
+  const documents: DocumentRow[] = [];
+  for (const receipt of receipts) {
+    const receivedAt = checkIns.find((row) => row.id === receipt.id)?.received_at ?? seededAt;
+    if (receipt.packingList) {
+      documents.push({
+        id: `${receipt.id}-pl`,
+        user_id: GUEST_USER_ID,
+        check_in_id: receipt.id,
+        doc_type: "packing_list",
+        file_name: `packing-list-${receipt.id}.txt`,
+        mime_type: "text/plain",
+        storage_path: textFileDataUrl(receipt.packingList),
+        created_at: receivedAt,
+      });
+    }
+    if (receipt.mtr) {
+      documents.push({
+        id: `${receipt.id}-mtr`,
+        user_id: GUEST_USER_ID,
+        check_in_id: receipt.id,
+        doc_type: "mtr",
+        file_name: `mtr-${receipt.id}.txt`,
+        mime_type: "text/plain",
+        storage_path: textFileDataUrl(receipt.mtr),
+        created_at: receivedAt,
+      });
+    }
+  }
+
+  const issues: MaterialIssue[] = issueSeeds.map((issue) => {
+    const line = SAMPLE_BOM_LINES.find((row) => row.id === issue.materialId);
+    const issuedAt = atDaysAgo(issue.daysAgo, issue.hour);
+    return {
+      id: issue.id,
+      user_id: GUEST_USER_ID,
+      material_id: issue.materialId,
+      quantity: issue.quantity,
+      notes: issue.notes,
+      project_number: line?.projectNumber ?? null,
+      construction_order: line?.constructionOrder ?? null,
+      issued_at: issuedAt,
+      created_at: issuedAt,
+    };
+  });
+
+  return { version: 2, materials, checkIns, documents, issues };
 }

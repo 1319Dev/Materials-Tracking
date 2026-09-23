@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useGuestData } from "@/auth/auth-context";
 import { PageShell } from "@/components/page-shell";
 import { Field, PrimaryButton, inputClassName } from "@/components/ui";
-import { loadMaterials, saveCheckIn } from "@/lib/app-data";
+import { createMaterial, loadOnHand, saveCheckIn } from "@/lib/app-data";
 import type { Material } from "@/lib/database.types";
+import { formatQty, jobLabel, splitHeatLotSerial, type OnHandRow } from "@/lib/quantities";
 
 type DocPick = {
   packingList: File | null;
@@ -14,14 +15,18 @@ type DocPick = {
 export function CheckInPage() {
   const navigate = useNavigate();
   const local = useGuestData();
+  const [rows, setRows] = useState<OnHandRow[]>([]);
   const [query, setQuery] = useState("");
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [selected, setSelected] = useState<Material | null>(null);
+  const [selected, setSelected] = useState<OnHandRow | null>(null);
+  const [custom, setCustom] = useState(false);
   const [open, setOpen] = useState(false);
   const [heatNumber, setHeatNumber] = useState("");
+  const [lotNumber, setLotNumber] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
+  const [projectNumber, setProjectNumber] = useState("");
+  const [constructionOrder, setConstructionOrder] = useState("");
   const [docs, setDocs] = useState<DocPick>({ packingList: null, mtr: null });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,10 +35,10 @@ export function CheckInPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { materials: rows, error: loadError } = await loadMaterials(local);
+      const result = await loadOnHand(local);
       if (!cancelled) {
-        setError(loadError);
-        setMaterials(rows);
+        setError(result.error);
+        setRows(result.rows);
         setLoadingCatalog(false);
       }
     })();
@@ -43,45 +48,90 @@ export function CheckInPage() {
   }, [local]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return materials.slice(0, 12);
-    return materials
-      .filter((m) => {
-        const hay = `${m.product_name} ${m.product_code ?? ""} ${m.size ?? ""} ${m.material_grade ?? ""}`.toLowerCase();
-        return hay.includes(q);
-      })
-      .slice(0, 12);
-  }, [materials, query]);
+    const needle = query.trim().toLowerCase();
+    const source = needle
+      ? rows.filter((row) => {
+          const material = row.material;
+          const hay = [
+            material.product_name,
+            material.product_code,
+            material.size_inches,
+            material.steel_grade,
+            material.manufacturer,
+            material.model_number,
+            material.project_number,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return hay.includes(needle);
+        })
+      : rows;
+    return source.slice(0, 12);
+  }, [rows, query]);
 
-  function pickMaterial(material: Material) {
-    setSelected(material);
-    setQuery(
-      material.product_code
-        ? `${material.product_code} — ${material.product_name}`
-        : material.product_name,
-    );
+  function pickMaterial(row: OnHandRow) {
+    setSelected(row);
+    setCustom(false);
+    const material = row.material;
+    setQuery(material.product_code ? `${material.product_code} — ${material.product_name}` : material.product_name);
+    const identity = splitHeatLotSerial(material.heat_lot_serial);
+    setHeatNumber(identity.heat);
+    setLotNumber(identity.lot);
+    setSerialNumber(identity.serial);
+    const short = Math.max(row.ordered - row.received, 0);
+    setQuantity(short > 0 ? String(short) : "1");
+    setProjectNumber(material.project_number ?? "");
+    setConstructionOrder(material.construction_order ?? "");
     setOpen(false);
   }
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  function useCustomLine() {
+    setSelected(null);
+    setCustom(true);
+    setOpen(false);
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
     setError(null);
 
-    if (!selected) {
-      setError("Select a product from the catalog.");
+    let material: Material | null = selected?.material ?? null;
+    if (!material && custom) {
+      const name = query.trim();
+      if (!name) {
+        setError("Enter the product or description.");
+        return;
+      }
+      const created = await createMaterial(local, {
+        product_name: name,
+        description: name,
+        project_number: projectNumber,
+        construction_order: constructionOrder,
+        ordered_qty: 0,
+      });
+      if ("error" in created) {
+        setError(created.error);
+        return;
+      }
+      material = created.material;
+    }
+
+    if (!material) {
+      setError("Select a BOM line, or check this description in as a new line.");
       return;
     }
-    if (selected.heat_number_required && !heatNumber.trim()) {
-      setError("Heat number is required for this product.");
+    if (material.heat_number_required && !heatNumber.trim() && !lotNumber.trim()) {
+      setError("Enter the heat or lot number from the stencil.");
       return;
     }
-    if (selected.requires_serial && !serialNumber.trim()) {
+    if (material.requires_serial && !serialNumber.trim()) {
       setError("Serial number is required for this product.");
       return;
     }
     const qty = Number(quantity);
     if (!Number.isFinite(qty) || qty <= 0) {
-      setError("Quantity must be a positive number.");
+      setError("Quantity received must be a positive number.");
       return;
     }
 
@@ -91,8 +141,9 @@ export function CheckInPage() {
     if (docs.mtr) files.push({ file: docs.mtr, docType: "mtr" });
 
     const saved = await saveCheckIn(local, {
-      material: selected,
+      material,
       heatNumber,
+      lotNumber,
       serialNumber,
       quantity: qty,
       notes,
@@ -103,155 +154,197 @@ export function CheckInPage() {
       setError(saved.error);
       return;
     }
-    navigate(`/inventory/${saved.id}`);
+    navigate(docs.mtr ? `/inventory/${saved.id}` : `/inventory/${saved.id}?needMtr=1`);
   }
+
+  const material = selected?.material;
 
   return (
     <PageShell
-      title="Check in materials"
-      description={
-        local
-          ? "Search the sample catalog, enter heat/serial, and save on this device. Sign in to save to the cloud."
-          : "Search the catalog, enter heat/serial, attach packing list and/or MTR, then save."
+      title="Check in a delivery"
+      description="Material just hit the yard. Pick the BOM line, enter the quantity received, heat / lot / serial, and attach the packing list or MTR if you have them."
+      actions={
+        <Link to="/packing-list" className="text-sm font-semibold text-[var(--accent)]">
+          Confirm a whole packing list
+        </Link>
       }
     >
-      <form
-        onSubmit={onSubmit}
-        className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4"
-      >
+      <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
         <Field
-          label="Product"
+          label="Product / description"
           hint={
             loadingCatalog
-              ? "Loading catalog…"
-              : materials.length
-                ? "Type to search imported materials."
-                : "Catalog is empty — import a spreadsheet first."
+              ? "Loading the BOM…"
+              : rows.length
+                ? "Search the bill of materials. You can also check in a description that is not on the BOM yet."
+                : "The BOM is empty. You can still check this description in, or import a spreadsheet first."
           }
         >
           <div className="relative">
             <input
               className={inputClassName}
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
+              onChange={(event) => {
+                setQuery(event.target.value);
                 setSelected(null);
+                setCustom(false);
                 setOpen(true);
               }}
               onFocus={() => setOpen(true)}
-              placeholder="Search product name or code"
+              placeholder="Description, item, size, or heat"
               autoComplete="off"
               required
             />
-            {open && filtered.length > 0 ? (
-              <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-md border border-[var(--border)] bg-white shadow-md">
-                {filtered.map((material) => (
-                  <li key={material.id}>
+            {open && (filtered.length > 0 || query.trim()) ? (
+              <ul className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-[var(--border)] bg-white shadow-md">
+                {filtered.map((row) => (
+                  <li key={row.material.id}>
                     <button
                       type="button"
-                      className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-[var(--surface-2)]"
-                      onClick={() => pickMaterial(material)}
+                      className="flex w-full flex-col items-start gap-0.5 px-3 py-3 text-left hover:bg-[var(--surface-2)]"
+                      onClick={() => pickMaterial(row)}
                     >
-                      <span className="text-sm font-medium">{material.product_name}</span>
-                      <span className="font-mono text-xs text-[var(--muted)]">
-                        {[material.product_code, material.size, material.material_grade]
+                      <span className="text-sm font-medium">{row.material.product_name}</span>
+                      <span className="text-xs text-[var(--muted)]">
+                        {[
+                          row.material.product_code,
+                          row.material.size_inches ? `${row.material.size_inches} in` : "",
+                          row.material.steel_grade,
+                          jobLabel(row.material),
+                        ]
                           .filter(Boolean)
-                          .join(" · ") || "No code/size"}
+                          .join(" · ")}
+                      </span>
+                      <span className="font-mono text-xs text-[var(--muted)]">
+                        On hand {formatQty(row.onHand)} · ordered {formatQty(row.ordered)}
+                        {row.shortage > 0 ? ` · short ${formatQty(row.shortage)}` : ""}
                       </span>
                     </button>
                   </li>
                 ))}
+                {query.trim() ? (
+                  <li>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-3 text-left text-sm font-medium text-[var(--accent)] hover:bg-[var(--surface-2)]"
+                      onClick={useCustomLine}
+                    >
+                      Check in “{query.trim()}” as a new line
+                    </button>
+                  </li>
+                ) : null}
               </ul>
             ) : null}
           </div>
         </Field>
 
-        {selected ? (
-          <p className="rounded-md bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]">
-            Selected: <span className="font-medium text-[var(--ink)]">{selected.product_name}</span>
-            {selected.requires_serial ? " · serial required" : ""}
-            {selected.heat_number_required ? " · heat # required" : ""}
-          </p>
+        {material ? (
+          <div className="rounded-md bg-[var(--surface-2)] px-3 py-3 text-sm">
+            <p className="font-medium text-[var(--ink)]">{material.product_name}</p>
+            <p className="mt-1 text-[var(--muted)]">
+              {[
+                material.size_inches ? `${material.size_inches} in` : "",
+                material.wall_sdr ? `wall ${material.wall_sdr}` : "",
+                material.steel_grade,
+                material.manufacturer,
+                material.model_number,
+                material.ansi_rating,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "No size / grade on the BOM"}
+            </p>
+            <p className="mt-1 text-[var(--muted)]">{jobLabel(material)}</p>
+            {selected ? (
+              <p className="mt-2 font-mono text-xs text-[var(--ink)]">
+                On hand {formatQty(selected.onHand)} · ordered {formatQty(selected.ordered)} · issued{" "}
+                {formatQty(selected.issued)} · remaining {formatQty(selected.remaining)}
+              </p>
+            ) : null}
+            {selected && !selected.hasMtr ? (
+              <p className="mt-2 text-xs text-[var(--warn)]">No MTR on file. You can request one after this receipt.</p>
+            ) : null}
+          </div>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        {custom ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Project number" hint="Optional">
+              <input className={inputClassName} value={projectNumber} onChange={(event) => setProjectNumber(event.target.value)} />
+            </Field>
+            <Field label="Construction order" hint="Optional">
+              <input
+                className={inputClassName}
+                value={constructionOrder}
+                onChange={(event) => setConstructionOrder(event.target.value)}
+              />
+            </Field>
+          </div>
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Heat number">
             <input
               className={inputClassName}
               value={heatNumber}
-              onChange={(e) => setHeatNumber(e.target.value)}
-              required={selected?.heat_number_required ?? true}
-              placeholder="e.g. H4521"
+              onChange={(event) => setHeatNumber(event.target.value)}
+              placeholder="H-45219"
             />
           </Field>
-          <Field
-            label="Serial number"
-            hint={selected?.requires_serial ? "Required for this product." : "Optional"}
-          >
+          <Field label="Lot number">
+            <input
+              className={inputClassName}
+              value={lotNumber}
+              onChange={(event) => setLotNumber(event.target.value)}
+              placeholder="If it is a lot, not a heat"
+            />
+          </Field>
+          <Field label="Serial number" hint={material?.requires_serial ? "Required for this product." : "Optional"}>
             <input
               className={inputClassName}
               value={serialNumber}
-              onChange={(e) => setSerialNumber(e.target.value)}
-              required={selected?.requires_serial ?? false}
-              placeholder="If applicable"
+              onChange={(event) => setSerialNumber(event.target.value)}
+              placeholder="Valve or fitting serial"
             />
           </Field>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Quantity">
+          <Field label="Qty received" hint={material?.unit ? `Unit on the BOM: ${material.unit}` : "How much arrived"}>
             <input
               className={inputClassName}
-              type="number"
-              min="0.001"
-              step="any"
+              inputMode="decimal"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
+              onChange={(event) => setQuantity(event.target.value)}
               required
             />
           </Field>
-          <Field label="Notes" hint="Optional">
-            <input
-              className={inputClassName}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="PO, truck #, location…"
-            />
+          <Field label="Notes" hint="Truck, yard, or packing-list exception">
+            <input className={inputClassName} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Truck 18, yard 2" />
           </Field>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Packing list" hint="PDF or image">
+          <Field label="Packing list" hint="Photo or PDF, if you have it">
             <input
               className={inputClassName}
               type="file"
-              accept="application/pdf,image/*"
-              onChange={(e) =>
-                setDocs((prev) => ({
-                  ...prev,
-                  packingList: e.target.files?.[0] ?? null,
-                }))
-              }
+              accept="application/pdf,image/*,.txt"
+              onChange={(event) => setDocs((prev) => ({ ...prev, packingList: event.target.files?.[0] ?? null }))}
             />
           </Field>
-          <Field label="MTR" hint="Material Test Report — PDF or image">
+          <Field label="MTR" hint="Leave empty to request the cert afterward">
             <input
               className={inputClassName}
               type="file"
-              accept="application/pdf,image/*"
-              onChange={(e) =>
-                setDocs((prev) => ({
-                  ...prev,
-                  mtr: e.target.files?.[0] ?? null,
-                }))
-              }
+              accept="application/pdf,image/*,.txt"
+              onChange={(event) => setDocs((prev) => ({ ...prev, mtr: event.target.files?.[0] ?? null }))}
             />
           </Field>
         </div>
 
         {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
 
-        <PrimaryButton type="submit" disabled={busy || !materials.length}>
+        <PrimaryButton type="submit" disabled={busy}>
           {busy ? "Saving…" : "Save check-in"}
         </PrimaryButton>
       </form>

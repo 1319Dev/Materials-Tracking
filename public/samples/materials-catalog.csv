@@ -1,5 +1,8 @@
-product_code,product_name,description,size,material_grade,manufacturer,unit,requires_serial,heat_number_required
-PIPE-12-X42,12in API 5L X42 Line Pipe,Beveled ends,12in,X42,Example Mill,ft,false,true
-ELL-6-90-STD,6in 90 Elbow STD,Long radius,6in,A234 WPB,Example Fitting Co,ea,false,true
-VALVE-8-BALL,8in Ball Valve Flanged,Full port,8in,A105,Example Valve Inc,ea,true,true
-FLANGE-4-WN,4in Weld Neck Flange,150 RF,4in,A105,Example Flange Co,ea,false,true
+Item,QTY,Size (Inches),Description (Complete Information),Wall / SDR,Steel Grade,Manufacturer,Model Number,Serial / Lot / Heat #,ANSI / Pressure Rating,Project Number,Construction Order No
+P-12-X52,240,12.75,"12 in API 5L PSL2 X52 line pipe, beveled ends, 40 ft joints",0.375,X52,American Steel Pipe,,H-45219,,24-118,CO-5521
+E-6-90,18,6,"6 in 90 degree long radius elbow, butt weld",STD,A234 WPB,Hackney Ladish,LR90-6-STD,H-77810,,24-118,CO-5521
+V-8-600,4,8,"8 in Class 600 ball valve, RF flanged, full port",,A105 / WCB,Cameron,T31-8-600,Heat H-90021 / SN BV-4418,ANSI 600,24-118,CO-5521
+F-4-WN,16,4,"4 in weld neck flange, 600 RF, bore to STD",STD,A105,Boltex,WN-4-600,H-33102,ANSI 600,24-118,CO-5521
+R-12X8,8,12 x 8,"12 in x 8 in concentric reducer, butt weld",0.375 x 0.322,A234 WPB,Hackney,CR-12X8,,,24-118,CO-5521
+V-2-800,2,2,"2 in gate valve, threaded NPT, 800 class",,A105,Bonney Forge,GV-2-800,Heat H-22091 / SN GV-2201,ANSI 800,24-118,CO-5521
+P-16-X65,120,16,"16 in API 5L PSL2 X65 line pipe, beveled ends",0.500,X65,Stupp,,H-61002,,24-204,CO-5602

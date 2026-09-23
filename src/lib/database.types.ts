@@ -6,6 +6,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type PackingListStatus = "pending" | "full" | "partial" | "missing";
+
 export type Database = {
   public: {
     Tables: {
@@ -14,6 +16,7 @@ export type Database = {
           created_at: string;
           heat_number: string;
           id: string;
+          lot_number: string | null;
           material_id: string | null;
           notes: string | null;
           product_code: string | null;
@@ -27,6 +30,7 @@ export type Database = {
           created_at?: string;
           heat_number: string;
           id?: string;
+          lot_number?: string | null;
           material_id?: string | null;
           notes?: string | null;
           product_code?: string | null;
@@ -40,6 +44,7 @@ export type Database = {
           created_at?: string;
           heat_number?: string;
           id?: string;
+          lot_number?: string | null;
           material_id?: string | null;
           notes?: string | null;
           product_code?: string | null;
@@ -108,57 +113,126 @@ export type Database = {
         };
         Relationships: [];
       };
-      materials: {
+      material_issues: {
         Row: {
+          construction_order: string | null;
           created_at: string;
-          description: string | null;
-          heat_number_required: boolean;
           id: string;
-          import_batch_id: string | null;
-          manufacturer: string | null;
-          material_grade: string | null;
-          product_code: string | null;
-          product_name: string;
-          requires_serial: boolean;
-          size: string | null;
-          source_row: Json | null;
-          unit: string | null;
-          updated_at: string;
+          issued_at: string;
+          material_id: string;
+          notes: string | null;
+          project_number: string | null;
+          quantity: number;
           user_id: string;
         };
         Insert: {
+          construction_order?: string | null;
           created_at?: string;
-          description?: string | null;
-          heat_number_required?: boolean;
           id?: string;
-          import_batch_id?: string | null;
-          manufacturer?: string | null;
-          material_grade?: string | null;
-          product_code?: string | null;
-          product_name: string;
-          requires_serial?: boolean;
-          size?: string | null;
-          source_row?: Json | null;
-          unit?: string | null;
-          updated_at?: string;
+          issued_at?: string;
+          material_id: string;
+          notes?: string | null;
+          project_number?: string | null;
+          quantity: number;
           user_id: string;
         };
         Update: {
+          construction_order?: string | null;
+          created_at?: string;
+          id?: string;
+          issued_at?: string;
+          material_id?: string;
+          notes?: string | null;
+          project_number?: string | null;
+          quantity?: number;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      materials: {
+        Row: {
+          ansi_rating: string | null;
+          construction_order: string | null;
+          created_at: string;
+          description: string | null;
+          heat_lot_serial: string | null;
+          heat_number_required: boolean;
+          id: string;
+          import_batch_id: string | null;
+          issued_qty: number;
+          manufacturer: string | null;
+          material_grade: string | null;
+          model_number: string | null;
+          ordered_qty: number;
+          packing_list_status: PackingListStatus;
+          product_code: string | null;
+          product_name: string;
+          project_number: string | null;
+          requires_serial: boolean;
+          size: string | null;
+          size_inches: string | null;
+          source_row: Json | null;
+          steel_grade: string | null;
+          unit: string | null;
+          updated_at: string;
+          user_id: string;
+          wall_sdr: string | null;
+        };
+        Insert: {
+          ansi_rating?: string | null;
+          construction_order?: string | null;
           created_at?: string;
           description?: string | null;
+          heat_lot_serial?: string | null;
           heat_number_required?: boolean;
           id?: string;
           import_batch_id?: string | null;
+          issued_qty?: number;
           manufacturer?: string | null;
           material_grade?: string | null;
+          model_number?: string | null;
+          ordered_qty?: number;
+          packing_list_status?: PackingListStatus;
           product_code?: string | null;
-          product_name?: string;
+          product_name: string;
+          project_number?: string | null;
           requires_serial?: boolean;
           size?: string | null;
+          size_inches?: string | null;
           source_row?: Json | null;
+          steel_grade?: string | null;
+          unit?: string | null;
+          updated_at?: string;
+          user_id: string;
+          wall_sdr?: string | null;
+        };
+        Update: {
+          ansi_rating?: string | null;
+          construction_order?: string | null;
+          created_at?: string;
+          description?: string | null;
+          heat_lot_serial?: string | null;
+          heat_number_required?: boolean;
+          id?: string;
+          import_batch_id?: string | null;
+          issued_qty?: number;
+          manufacturer?: string | null;
+          material_grade?: string | null;
+          model_number?: string | null;
+          ordered_qty?: number;
+          packing_list_status?: PackingListStatus;
+          product_code?: string | null;
+          product_name?: string;
+          project_number?: string | null;
+          requires_serial?: boolean;
+          size?: string | null;
+          size_inches?: string | null;
+          source_row?: Json | null;
+          steel_grade?: string | null;
           unit?: string | null;
           updated_at?: string;
           user_id?: string;
+          wall_sdr?: string | null;
         };
         Relationships: [];
       };
@@ -181,4 +255,5 @@ export type Database = {
 export type Material = Database["public"]["Tables"]["materials"]["Row"];
 export type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 export type DocumentRow = Database["public"]["Tables"]["documents"]["Row"];
+export type MaterialIssue = Database["public"]["Tables"]["material_issues"]["Row"];
 export type DocType = Database["public"]["Enums"]["doc_type"];

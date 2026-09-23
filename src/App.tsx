@@ -8,6 +8,9 @@ import { HomeRedirect } from "@/pages/home-redirect";
 import { InventoryDetailPage } from "@/pages/inventory-detail";
 import { InventoryPage } from "@/pages/inventory";
 import { LoginPage } from "@/pages/login";
+import { MaterialDetailPage } from "@/pages/material-detail";
+import { MtrRequestPage } from "@/pages/mtr-request";
+import { PackingListPage } from "@/pages/packing-list";
 import { NotFoundPage } from "@/pages/not-found";
 import { SignupPage } from "@/pages/signup";
 
@@ -35,8 +38,11 @@ export function App() {
           }
         />
         <Route path="/check-in" element={<CheckInPage />} />
+        <Route path="/packing-list" element={<PackingListPage />} />
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/inventory/:id" element={<InventoryDetailPage />} />
+        <Route path="/materials/:id" element={<MaterialDetailPage />} />
+        <Route path="/mtr-request/:materialId" element={<MtrRequestPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
