@@ -135,6 +135,8 @@ function normalizeCheckIn(row: CheckIn): CheckIn {
   return {
     ...row,
     lot_number: row.lot_number ?? null,
+    shipment_number:
+      row.shipment_number ?? (row.id === "demo-ci-valve-8" ? "MRC-1844" : null),
     quantity: Number(row.quantity) || 0,
   };
 }
@@ -401,6 +403,7 @@ export async function addGuestCheckIn(input: {
   heatNumber: string;
   lotNumber: string;
   serialNumber: string;
+  shipmentNumber: string;
   quantity: number;
   notes: string;
   files: Array<{ file: File; docType: DocumentRow["doc_type"] }>;
@@ -418,6 +421,7 @@ export async function addGuestCheckIn(input: {
     heat_number: input.heatNumber.trim() || "N/A",
     lot_number: input.lotNumber.trim() || null,
     serial_number: input.serialNumber.trim() || null,
+    shipment_number: input.shipmentNumber.trim() || null,
     quantity: input.quantity,
     notes: input.notes.trim() || null,
     received_at: now,
@@ -450,6 +454,7 @@ export async function confirmGuestReceipt(input: {
   lines: ConfirmLineInput[];
   packingList: File | null;
   notes: string;
+  shipmentNumber: string;
 }) {
   const data = readGuestData();
   const now = new Date().toISOString();
@@ -486,6 +491,7 @@ export async function confirmGuestReceipt(input: {
       heat_number: line.heatNumber.trim() || "N/A",
       lot_number: line.lotNumber.trim() || null,
       serial_number: line.serialNumber.trim() || null,
+      shipment_number: input.shipmentNumber.trim() || null,
       quantity: line.quantity,
       notes: input.notes.trim() || "Packing list confirmation",
       received_at: now,

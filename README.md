@@ -95,7 +95,7 @@ With an account, or as a guest:
 - **Confirm** — mark each packing-list line full, partial, or missing. Received quantities become check-ins and update on hand.
 - **Check in** — one delivery: description, heat / lot / serial, qty received, packing list and MTR uploads.
 - **On hand** — per material and job: on hand, ordered, issued, and remaining. Issue qty out to the job from the sheet.
-- **Request MTR** — when a line has no mill cert, open a prefilled request, edit it, then print, copy, or download.
+- **Request MTR** — when a line has no mill cert, open Garrett's MTR REQUEST FORM. It is filled from the BOM and check-in (Material Description, Diameter, Wall Thickness, Grade, Heat Number, Manufacturer, Atmos Project #, Sales Order# / Customer PO #, Shipment # (MRC)). Inspector Name and Vendor stay blank. Edit it, then print or download the workbook.
 
 ## Scripts
 
@@ -112,7 +112,7 @@ With an account, or as a guest:
 | --- | --- |
 | `materials` | BOM lines: identity, job, ordered qty, issued qty, packing-list status |
 | `import_batches` | Import run metadata |
-| `check_ins` | Received material (heat, lot, serial, qty, notes) |
+| `check_ins` | Received material (heat, lot, serial, shipment #, qty, notes) |
 | `material_issues` | Quantity issued out to the job |
 | `documents` | Packing list / MTR / other file metadata |
 

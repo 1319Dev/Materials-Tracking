@@ -23,6 +23,7 @@ export function CheckInPage() {
   const [heatNumber, setHeatNumber] = useState("");
   const [lotNumber, setLotNumber] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
+  const [shipmentNumber, setShipmentNumber] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
   const [projectNumber, setProjectNumber] = useState("");
@@ -145,6 +146,7 @@ export function CheckInPage() {
       heatNumber,
       lotNumber,
       serialNumber,
+      shipmentNumber,
       quantity: qty,
       notes,
       files,
@@ -307,6 +309,15 @@ export function CheckInPage() {
             />
           </Field>
         </div>
+
+        <Field label="Shipment # (MRC)" hint="Optional. Shows on the MTR request when the cert did not ship.">
+          <input
+            className={inputClassName}
+            value={shipmentNumber}
+            onChange={(event) => setShipmentNumber(event.target.value)}
+            placeholder="MRC-1844"
+          />
+        </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Qty received" hint={material?.unit ? `Unit on the BOM: ${material.unit}` : "How much arrived"}>

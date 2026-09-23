@@ -474,6 +474,7 @@ export async function saveCheckIn(
     heatNumber: string;
     lotNumber: string;
     serialNumber: string;
+    shipmentNumber: string;
     quantity: number;
     notes: string;
     files: Array<{ file: File; docType: "packing_list" | "mtr" }>;
@@ -494,6 +495,7 @@ export async function saveCheckIn(
       heat_number: input.heatNumber.trim() || "N/A",
       lot_number: input.lotNumber.trim() || null,
       serial_number: input.serialNumber.trim() || null,
+      shipment_number: input.shipmentNumber.trim() || null,
       quantity: input.quantity,
       notes: input.notes.trim() || null,
     })
@@ -520,7 +522,7 @@ export async function saveCheckIn(
 
 export async function confirmPackingList(
   local: boolean,
-  input: { lines: ConfirmLineInput[]; packingList: File | null; notes: string },
+  input: { lines: ConfirmLineInput[]; packingList: File | null; notes: string; shipmentNumber: string },
 ): Promise<{ created: number; missing: number; checkInIds: string[] } | { error: string }> {
   const actionable = input.lines.filter((line) => line.status === "missing" || line.quantity > 0);
   if (!actionable.length) return { error: "Mark at least one line full, partial, or missing." };
@@ -568,6 +570,7 @@ export async function confirmPackingList(
         heat_number: line.heatNumber.trim() || "N/A",
         lot_number: line.lotNumber.trim() || null,
         serial_number: line.serialNumber.trim() || null,
+        shipment_number: input.shipmentNumber.trim() || null,
         quantity: line.quantity,
         notes: input.notes.trim() || "Packing list confirmation",
       })

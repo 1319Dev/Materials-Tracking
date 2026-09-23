@@ -2,9 +2,23 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useGuestData } from "@/auth/auth-context";
 import { PageShell } from "@/components/page-shell";
-import { Field, SecondaryButton, inputClassName } from "@/components/ui";
+import { SecondaryButton } from "@/components/ui";
 import { loadMaterialDetail } from "@/lib/app-data";
-import { emptyMtrDraft, mtrRequestText, type MtrRequestDraft } from "@/lib/mtr-request";
+import {
+  MTR_FORM_TITLE,
+  MTR_HEADER_FIELDS,
+  MTR_LINE_COLUMNS,
+  MTR_SHEET_LINE_SLOTS,
+  combineHeatNumber,
+  downloadMtrWorkbook,
+  emptyMtrForm,
+  emptyMtrLine,
+  mtrRequestText,
+  withPrefill,
+  type MtrHeaderKey,
+  type MtrLineKey,
+  type MtrRequestForm,
+} from "@/lib/mtr-request";
 import { splitHeatLotSerial } from "@/lib/quantities";
 
 export function MtrRequestPage() {
@@ -12,7 +26,7 @@ export function MtrRequestPage() {
   const [params] = useSearchParams();
   const receiptId = params.get("receipt");
   const local = useGuestData();
-  const [draft, setDraft] = useState<MtrRequestDraft>(emptyMtrDraft);
+  const [form, setForm] = useState<MtrRequestForm>(emptyMtrForm);
   const [ready, setReady] = useState(false);
   const [missing, setMissing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -33,25 +47,28 @@ export function MtrRequestPage() {
       const material = row.material;
       const checkIn = (receiptId && row.checkIns.find((entry) => entry.id === receiptId)) || row.latestCheckIn;
       const identity = splitHeatLotSerial(material.heat_lot_serial);
-      const qty = checkIn?.quantity || (row.onHand > 0 ? row.onHand : row.ordered);
-      const base = emptyMtrDraft();
-      setDraft({
-        ...base,
-        manufacturer: material.manufacturer ?? "",
-        projectNumber: material.project_number ?? "",
-        constructionOrder: material.construction_order ?? "",
-        description: material.description || material.product_name,
-        sizeInches: material.size_inches || material.size || "",
-        wallSdr: material.wall_sdr ?? "",
-        steelGrade: material.steel_grade || material.material_grade || "",
-        modelNumber: material.model_number ?? "",
-        ansiRating: material.ansi_rating ?? "",
-        heatNumber: checkIn && checkIn.heat_number !== "N/A" ? checkIn.heat_number : identity.heat,
-        lotNumber: checkIn?.lot_number || identity.lot,
-        serialNumber: checkIn?.serial_number || identity.serial,
-        quantity: qty ? String(qty) : "",
-        unit: material.unit ?? "",
-      });
+      const heat = checkIn && checkIn.heat_number !== "N/A" ? checkIn.heat_number : identity.heat;
+      const lot = checkIn?.lot_number || identity.lot;
+      const serial = checkIn?.serial_number || identity.serial;
+      setForm(
+        withPrefill(
+          {
+            inspectorName: "",
+            vendor: "",
+            atmosProject: material.project_number ?? "",
+            salesOrder: material.construction_order ?? "",
+            shipmentNumber: checkIn?.shipment_number ?? "",
+          },
+          {
+            materialDescription: material.description || material.product_name,
+            diameter: material.size_inches || material.size || "",
+            wallThickness: material.wall_sdr ?? "",
+            grade: material.steel_grade || material.material_grade || "",
+            heatNumber: combineHeatNumber(heat, lot, serial),
+            manufacturer: material.manufacturer ?? "",
+          },
+        ),
+      );
       setReady(true);
     })();
     return () => {
@@ -59,15 +76,29 @@ export function MtrRequestPage() {
     };
   }, [local, materialId, receiptId]);
 
-  function setField<K extends keyof MtrRequestDraft>(key: K, value: MtrRequestDraft[K]) {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+  function setHeader(key: MtrHeaderKey, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
     setCopied(false);
   }
 
+  function setLine(index: number, key: MtrLineKey, value: string) {
+    setForm((prev) => {
+      const lines = prev.lines.map((line, lineIndex) => (lineIndex === index ? { ...line, [key]: value } : line));
+      return { ...prev, lines };
+    });
+    setCopied(false);
+  }
+
+  function addLine() {
+    setForm((prev) => {
+      if (prev.lines.length >= MTR_SHEET_LINE_SLOTS) return prev;
+      return { ...prev, lines: [...prev.lines, emptyMtrLine()] };
+    });
+  }
+
   async function copyRequest() {
-    const text = mtrRequestText(draft);
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(mtrRequestText(form));
       setCopied(true);
     } catch {
       setCopied(false);
@@ -75,21 +106,17 @@ export function MtrRequestPage() {
     }
   }
 
-  function downloadRequest() {
-    const text = mtrRequestText(draft);
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    const slug = (draft.projectNumber || draft.description || "mtr-request").replace(/[^\w.-]+/g, "-").slice(0, 40);
-    anchor.href = url;
-    anchor.download = `mtr-request-${slug}.txt`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+  async function downloadRequest() {
+    try {
+      await downloadMtrWorkbook(form);
+    } catch {
+      setError("Could not build the workbook. Print the form instead.");
+    }
   }
 
   if (!ready) {
     return (
-      <PageShell title="MTR request">
+      <PageShell title={MTR_FORM_TITLE}>
         <p className="text-sm text-[var(--muted)]">Loading the line…</p>
       </PageShell>
     );
@@ -97,7 +124,7 @@ export function MtrRequestPage() {
 
   if (missing) {
     return (
-      <PageShell title="MTR request" actions={<SecondaryButton to="/inventory">Back to on hand</SecondaryButton>}>
+      <PageShell title={MTR_FORM_TITLE} actions={<SecondaryButton to="/inventory">Back to on hand</SecondaryButton>}>
         <p className="text-sm text-[var(--muted)]">That material is not on this device.</p>
       </PageShell>
     );
@@ -105,9 +132,10 @@ export function MtrRequestPage() {
 
   return (
     <PageShell
-      title="MTR request"
-      description="Prefilled from the BOM line and the latest check-in. Change anything, then print, copy, or download. This is a request, not the mill certificate."
+      title={MTR_FORM_TITLE}
+      description="Filled from the BOM line and the check-in. Inspector Name and Vendor stay blank until you type them. Edit any cell, then print or download the workbook."
       headerClassName="no-print"
+      wide
       actions={
         <div className="no-print flex flex-wrap gap-2">
           <SecondaryButton type="button" onClick={() => window.print()}>
@@ -123,58 +151,57 @@ export function MtrRequestPage() {
         </div>
       }
     >
+      <style>{`@media print { @page { size: landscape; margin: 0.4in; } }`}</style>
       {error ? <p className="no-print text-sm text-[var(--danger)]">{error}</p> : null}
-      <article className="print-sheet space-y-5 rounded-lg border border-[var(--border)] bg-white p-4 sm:p-6">
-        <header>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Materials tracking</p>
-          <h2 className="text-2xl font-semibold text-[var(--ink)]">Material test report request</h2>
-        </header>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField label="To (manufacturer)" value={draft.manufacturer} onChange={(value) => setField("manufacturer", value)} />
-          <TextField label="Request date" value={draft.requestDate} onChange={(value) => setField("requestDate", value)} type="date" />
-          <TextField label="Project number" value={draft.projectNumber} onChange={(value) => setField("projectNumber", value)} />
-          <TextField label="Construction order" value={draft.constructionOrder} onChange={(value) => setField("constructionOrder", value)} />
+      <article className="mtr-sheet overflow-x-auto bg-white text-[var(--ink)]">
+        <div className="mtr-head">
+          <h2 className="mtr-title">{MTR_FORM_TITLE}</h2>
+          {MTR_HEADER_FIELDS.map((field) => (
+            <span key={field.key} className="mtr-pair">
+              <label className="mtr-label" htmlFor={`mtr-${field.key}`}>
+                {field.label}
+              </label>
+              <input
+                id={`mtr-${field.key}`}
+                className="mtr-value"
+                value={form[field.key]}
+                onChange={(event) => setHeader(field.key, event.target.value)}
+              />
+            </span>
+          ))}
         </div>
-        <TextField label="Description" value={draft.description} onChange={(value) => setField("description", value)} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField label="Size (inches)" value={draft.sizeInches} onChange={(value) => setField("sizeInches", value)} />
-          <TextField label="Wall / SDR" value={draft.wallSdr} onChange={(value) => setField("wallSdr", value)} />
-          <TextField label="Steel grade" value={draft.steelGrade} onChange={(value) => setField("steelGrade", value)} />
-          <TextField label="Model number" value={draft.modelNumber} onChange={(value) => setField("modelNumber", value)} />
-          <TextField label="ANSI / pressure rating" value={draft.ansiRating} onChange={(value) => setField("ansiRating", value)} />
-          <TextField label="Quantity" value={draft.quantity} onChange={(value) => setField("quantity", value)} />
-          <TextField label="Heat number" value={draft.heatNumber} onChange={(value) => setField("heatNumber", value)} />
-          <TextField label="Lot number" value={draft.lotNumber} onChange={(value) => setField("lotNumber", value)} />
-          <TextField label="Serial number" value={draft.serialNumber} onChange={(value) => setField("serialNumber", value)} />
-          <TextField label="Unit" value={draft.unit} onChange={(value) => setField("unit", value)} />
-          <TextField label="Requested by" value={draft.requestedBy} onChange={(value) => setField("requestedBy", value)} />
-        </div>
-        <Field label="Notes">
-          <textarea
-            className={`${inputClassName} min-h-28`}
-            value={draft.notes}
-            onChange={(event) => setField("notes", event.target.value)}
-          />
-        </Field>
+        <table className="mtr-grid">
+          <thead>
+            <tr>
+              {MTR_LINE_COLUMNS.map((column) => (
+                <th key={column.key} scope="col">
+                  {column.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {form.lines.map((line, index) => (
+              <tr key={index}>
+                {MTR_LINE_COLUMNS.map((column) => (
+                  <td key={column.key}>
+                    <input
+                      aria-label={`${column.label} ${index + 1}`}
+                      value={line[column.key]}
+                      onChange={(event) => setLine(index, column.key, event.target.value)}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </article>
+      <div className="no-print">
+        <SecondaryButton type="button" onClick={addLine} disabled={form.lines.length >= MTR_SHEET_LINE_SLOTS}>
+          Add line
+        </SecondaryButton>
+      </div>
     </PageShell>
-  );
-}
-
-function TextField({
-  label,
-  value,
-  onChange,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-}) {
-  return (
-    <Field label={label}>
-      <input className={inputClassName} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
-    </Field>
   );
 }

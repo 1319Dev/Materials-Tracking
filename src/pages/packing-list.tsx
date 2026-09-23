@@ -38,6 +38,7 @@ export function PackingListPage() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [project, setProject] = useState("all");
   const [packingList, setPackingList] = useState<File | null>(null);
+  const [shipmentNumber, setShipmentNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,7 +158,7 @@ export function PackingListPage() {
     }
 
     setBusy(true);
-    const saved = await confirmPackingList(local, { lines, packingList, notes });
+    const saved = await confirmPackingList(local, { lines, packingList, notes, shipmentNumber });
     setBusy(false);
     if ("error" in saved) {
       setError(saved.error);
@@ -279,6 +280,14 @@ export function PackingListPage() {
           </div>
 
           <section className="space-y-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+            <Field label="Shipment # (MRC)" hint="Optional. Written on each receipt from this packing list.">
+              <input
+                className={inputClassName}
+                value={shipmentNumber}
+                onChange={(event) => setShipmentNumber(event.target.value)}
+                placeholder="MRC-1844"
+              />
+            </Field>
             <Field label="Packing list for this receipt" hint="One photo or PDF, attached to each line you receive">
               <input
                 className={inputClassName}

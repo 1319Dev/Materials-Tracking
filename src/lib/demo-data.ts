@@ -67,6 +67,7 @@ type ReceiptSeed = {
   heat?: string;
   lot?: string;
   serial?: string;
+  shipment?: string;
 };
 
 type IssueSeed = {
@@ -115,7 +116,8 @@ export function createDemoGuestData(): GuestData {
       notes: "Two of four valves on the BOM. Mill cert was not in the crate.",
       heat: "H-90021",
       serial: "BV-4418",
-      packingList: "DEMO PACKING LIST\n8 in Class 600 ball valve\nItem V-8-600\nHeat H-90021\nSerial BV-4418\nQty received 2 of 4\nMTR not included",
+      shipment: "MRC-1844",
+      packingList: "DEMO PACKING LIST\n8 in Class 600 ball valve\nItem V-8-600\nHeat H-90021\nSerial BV-4418\nShipment MRC-1844\nQty received 2 of 4\nMTR not included",
     },
     {
       id: "demo-ci-flange-4",
@@ -222,6 +224,7 @@ export function createDemoGuestData(): GuestData {
       heat_number: receipt.heat || fallback?.heat || "N/A",
       lot_number: receipt.lot || fallback?.lot || null,
       serial_number: receipt.serial || fallback?.serial || null,
+      shipment_number: receipt.shipment || null,
       quantity: receipt.quantity,
       notes: receipt.notes,
       received_at: receivedAt,

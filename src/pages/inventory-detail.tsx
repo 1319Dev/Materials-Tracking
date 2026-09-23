@@ -79,7 +79,7 @@ export function InventoryDetailPage() {
       {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
       {askForMtr && !hasMtr && checkIn.material_id ? (
         <section className="flex flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-[var(--ink)]">This receipt has no MTR. The request form is already filled from the check-in.</p>
+          <p className="text-sm text-[var(--ink)]">This receipt has no MTR. The MTR REQUEST FORM is already filled from the check-in.</p>
           <SecondaryButton to={`/mtr-request/${checkIn.material_id ?? ""}?receipt=${checkIn.id}`}>Request MTR</SecondaryButton>
         </section>
       ) : null}
@@ -89,6 +89,7 @@ export function InventoryDetailPage() {
         <Detail label="Heat number" value={checkIn.heat_number || "—"} mono />
         <Detail label="Lot number" value={checkIn.lot_number || "—"} mono />
         <Detail label="Serial number" value={checkIn.serial_number || "—"} mono />
+        <Detail label="Shipment # (MRC)" value={checkIn.shipment_number || "—"} mono />
         {row ? (
           <>
             <Detail label="On hand" value={formatQty(row.onHand)} />

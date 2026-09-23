@@ -24,6 +24,7 @@ export type Database = {
           quantity: number;
           received_at: string;
           serial_number: string | null;
+          shipment_number: string | null;
           user_id: string;
         };
         Insert: {
@@ -38,6 +39,7 @@ export type Database = {
           quantity?: number;
           received_at?: string;
           serial_number?: string | null;
+          shipment_number?: string | null;
           user_id: string;
         };
         Update: {
@@ -52,6 +54,7 @@ export type Database = {
           quantity?: number;
           received_at?: string;
           serial_number?: string | null;
+          shipment_number?: string | null;
           user_id?: string;
         };
         Relationships: [];

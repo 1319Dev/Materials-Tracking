@@ -54,4 +54,131 @@ a {
     border: none !important;
     box-shadow: none !important;
   }
+
+  .mtr-sheet {
+    min-width: 0 !important;
+    width: 100%;
+    overflow: visible !important;
+  }
+}
+
+.mtr-sheet {
+  border: 2px solid #1c2430;
+  min-width: 52rem;
+}
+
+.mtr-head {
+  display: grid;
+  grid-template-columns: minmax(16rem, 12fr) minmax(19rem, 5.4fr);
+}
+
+.mtr-pair {
+  display: grid;
+  grid-template-columns: minmax(9rem, 2.4fr) minmax(10rem, 3fr);
+}
+
+.mtr-title {
+  grid-row: 1 / span 5;
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  background: #bdd7ee;
+  border-right: 1px solid #1c2430;
+  border-bottom: 1px solid #1c2430;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.mtr-label {
+  display: flex;
+  align-items: center;
+  background: #bdd7ee;
+  border-bottom: 1px solid #1c2430;
+  border-right: 1px solid #1c2430;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.mtr-value {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1px solid #1c2430;
+  background: white;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  color: inherit;
+}
+
+.mtr-value:focus,
+.mtr-grid input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.mtr-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.mtr-grid th,
+.mtr-grid td {
+  border: 1px solid #1c2430;
+  vertical-align: middle;
+}
+
+.mtr-grid th {
+  background: #f2f2f2;
+  padding: 0.45rem 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.mtr-grid th:nth-child(1),
+.mtr-grid td:nth-child(1) {
+  width: 28%;
+}
+
+.mtr-grid th:nth-child(2),
+.mtr-grid td:nth-child(2) {
+  width: 11%;
+}
+
+.mtr-grid th:nth-child(3),
+.mtr-grid td:nth-child(3) {
+  width: 14%;
+}
+
+.mtr-grid th:nth-child(4),
+.mtr-grid td:nth-child(4) {
+  width: 13%;
+}
+
+.mtr-grid th:nth-child(5),
+.mtr-grid td:nth-child(5) {
+  width: 16%;
+}
+
+.mtr-grid input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0.45rem 0.4rem;
+  font: inherit;
+  color: inherit;
+}
+
+@media (max-width: 720px) {
+  .mtr-sheet {
+    min-width: 44rem;
+  }
 }
